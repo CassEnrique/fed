@@ -1,24 +1,38 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import sys
+
+sys.setrecursionlimit(sys.getrecursionlimit() * 5)
+
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+
 block_cipher = None
 
+hidden_imports = [
+    "iva_process",
+    "v0_process",
+    "v16_process",
+    "resources_rc",
+    "header_process",
+    "iva_format_process",
+    "underline_bank_process",
+    "underline_aux_process",
+]
+
+hidden_imports += collect_submodules("easyocr")
+hidden_imports += collect_submodules("cv2")
+
+datas = []
+datas += collect_data_files("easyocr")
+datas += collect_data_files("PyQt5")
+datas += collect_data_files("qtawesome")
+
 a = Analysis(
-    ["src/interface.py"],  # Punto de entrada
-    pathex=[
-        "src"
-    ],  # MUY IMPORTANTE: Le dice a PyInstaller que busque módulos dentro de la carpeta 'src'
+    ["src/interface.py"],
+    pathex=["src"],
     binaries=[],
-    datas=[],  # Deja esto vacío para los archivos .py
-    hiddenimports=[  # Forzamos la inclusión de tus módulos propios
-        "iva_process",
-        "v0_process",
-        "v16_process",
-        "resources_rc",
-        "header_process",
-        "iva_format_process",
-        "underline_bank_process",
-        "underline_aux_process",
-    ],
+    datas=datas,
+    hiddenimports=hidden_imports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -42,14 +56,12 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
-    console=False,  # Si quieres ver errores en consola al probar, cámbialo a True
+    upx=False,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=["icons/favicon.ico"],
+    icon="icons/favicon.ico",
 )
