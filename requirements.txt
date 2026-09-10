@@ -1,0 +1,19 @@
+# --- Interfaz Gráfica (Mantener versiones fijas para evitar errores de GUI) ---
+PyQt5==5.15.11
+PyQt5-Qt5==5.15.2
+qtawesome==1.3.1
+
+# --- Procesamiento de Datos y Excel ---
+pandas>=2.0.0
+openpyxl>=3.1.0
+numpy
+rapidfuzz>=3.0.0
+
+# --- Visión Artificial y OCR ---
+opencv-python
+easyocr
+
+# --- Manipulación de PDF e Imágenes---
+pymupdf
+pdf2image
+Pillow

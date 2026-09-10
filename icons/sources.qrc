@@ -1,0 +1,25 @@
+<RCC>
+  <qresource prefix="icons">
+    <file>archivo-xlsx.png</file>
+    <file>order_play.svg</file>
+    <file>format_paint.svg</file>
+    <file>search.svg</file>
+    <file>close.svg</file>
+    <file>database_search.svg</file>
+    <file>exit_to_app.svg</file>
+    <file>file_save.svg</file>
+    <file>flow.svg</file>
+    <file>folder_open.svg</file>
+    <file>folder_zip.svg</file>
+    <file>logo.png</file>
+    <file>manufacturingsvg</file>
+    <file>minimize.svg</file>
+    <file>xenova.png</file>
+    <file>xlsx.png</file>
+    <file>pdf.png</file>
+    <file>sheets.png</file>
+    <file>calc.png</file>
+    <file>favicon.png</file>
+    <file>favicon.ico</file>
+  </qresource>
+</RCC>
