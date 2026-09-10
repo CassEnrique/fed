@@ -2,11 +2,10 @@ import re
 from datetime import datetime
 
 import cv2
+import easyocr
 import fitz  # PyMuPDF
 import numpy as np
 from openpyxl import load_workbook
-
-# import easyocr
 
 
 def crear_reader():
@@ -197,7 +196,7 @@ def resaltar_por_fecha_y_monto(pdf_entrada, pdf_salida, items_a_buscar):
     doc.close()
 
 
-def procesar_por_suff(suff, path, config):
+def procesar_por_suff(suff, path, file_name, config):
     suff_key = suff.lower()
     if suff_key not in config:
         return
@@ -206,7 +205,7 @@ def procesar_por_suff(suff, path, config):
     banks = datos.get("banks", [])
     name_sheet = datos.get("sheet_name", "")
 
-    archivo_base = f"{path}/{suff}.xlsx"
+    archivo_base = f"{path}/{file_name}.xlsx"
 
     for bank in banks:
         bank_file = bank["file"]
@@ -221,6 +220,8 @@ def procesar_por_suff(suff, path, config):
             nombre_hoja=name_sheet,
             type_bank=type_bank,
         )
+
+        print(transacciones)
 
         resaltar_por_fecha_y_monto(archivo_input, archivo_output, transacciones)
 
@@ -255,5 +256,5 @@ configuracion = {
 }
 
 
-def main_underline_bank_process(suff, path):
-    procesar_por_suff(suff, path, configuracion)
+def main_underline_bank_process(suff, path, file_name):
+    procesar_por_suff(suff, path, file_name, configuracion)

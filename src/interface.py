@@ -7,6 +7,7 @@ from datetime import datetime
 from html import escape
 
 import resources_rc
+from header_process import main_header_process
 from iva_format_process import main_iva_format_process
 from iva_process import main_iva_process
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -14,6 +15,12 @@ from underline_aux_process import main_underline_aux_process
 from underline_bank_process import main_underline_bank_process
 from v0_process import main_v0_process
 from v16_process import main_v16_process
+
+MAP_SUFIX_IDX = {
+    "1": "iva",
+    "2": "v0",
+    "3": "v16",
+}
 
 
 class ModernIconProvider(QtWidgets.QFileIconProvider):
@@ -339,7 +346,14 @@ class Ui_fedApp(object):
 
         self.boxProcess = QtWidgets.QComboBox()
         self.boxProcess.setObjectName("boxProcess")
-        self.boxProcess.addItems(["-- Selecciona un proceso --", "IVA", "V0", "V16"])
+        self.boxProcess.addItems(
+            [
+                "-- Selecciona un proceso --",
+                "IVA Acreditable 100%",
+                "Ventas al 0%",
+                "Ventas al 16%",
+            ]
+        )
         self.boxProcess.setMinimumHeight(38)
         processVLayout.addWidget(self.boxProcess)
         selectLayout.addWidget(processWidget, 1)
@@ -756,20 +770,20 @@ class Ui_fedApp(object):
 
     def toggle_action_items(self, idx):
         mapa_acciones = {
-            "iva": ["Procesar", "Formato", "Encabezado"],
-            "v0": ["Procesar", "Referencia Auxiliar", "Encabezado"],
-            "v16": ["Procesar", "Referencia Auxiliar", "Encabezado"],
+            "1": ["Procesar", "Formato", "Referencia Bancos", "Encabezado"],
+            "2": ["Procesar", "Subrayado Auxiliar", "Encabezado"],
+            "3": ["Procesar", "Subrayado Auxiliar", "Encabezado"],
         }
 
         """Carga acciones en el combo box con un ítem placeholder."""
         self.boxAction.clear()
         self.boxAction.addItem("-- Selecciona una acción --")
 
-        seleccion = self.boxProcess.currentText()
-        acciones = mapa_acciones.get(seleccion.casefold(), [])
+        idx_seleccion = self.boxProcess.currentIndex()
+        acciones = mapa_acciones.get(str(idx_seleccion), [])
 
         if acciones:
-            self.dynami_feature_content(seleccion)
+            self.dynami_feature_content(str(idx_seleccion))
             self.boxAction.addItems(acciones)
 
         self.boxAction.setCurrentIndex(0)
@@ -838,8 +852,8 @@ class Ui_fedApp(object):
             self.overlay.deleteLater()
 
     def obtener_proceso_fed(self):
-        texto_seleccionado = self.boxProcess.currentText()
         indice_seleccionado = self.boxProcess.currentIndex()
+        texto_seleccionado = MAP_SUFIX_IDX.get(str(indice_seleccionado), "")
 
         # Validar que no se haya seleccionado la opción por defecto (índice 0)
         if indice_seleccionado == 0:
@@ -930,14 +944,15 @@ class Ui_fedApp(object):
 
                 if vle_action.casefold() == "Formato".casefold():
                     self.text_console_log("Formato final al archivo...", "PROCESS")
-                    file_name = f"{path}/iva.xlsx"
+                    file_name = f"{path}/cedula_iva_acreditable_100.xlsx"
                     main_iva_format_process(file_name)
 
                 if vle_action.casefold() == "Referencia Bancos".casefold():
                     self.text_console_log(
                         "Procesando referencia en estados de cuenta...", "PROCESS"
                     )
-                    main_underline_bank_process(vle_process.casefold(), path)
+                    file_name = "cedula_iva_acreditable_100"
+                    main_underline_bank_process(vle_process.casefold(), path, file_name)
                     print("Proceso de referencia")
 
             if vle_process.casefold() == "v0".casefold():
@@ -945,7 +960,7 @@ class Ui_fedApp(object):
                     self.text_console_log("Iniciando proceso V0...", "PROCESS")
                     main_v0_process(path)
 
-                if vle_action.casefold() == "Referencia Auxiliar".casefold():
+                if vle_action.casefold() == "Subrayado Auxiliar".casefold():
                     self.text_console_log("Iniciando proceso V0...", "PROCESS")
                     main_underline_aux_process(path)
 
@@ -953,6 +968,18 @@ class Ui_fedApp(object):
                 if vle_action.casefold() == "Procesar".casefold():
                     self.text_console_log("Iniciando proceso V16...", "PROCESS")
                     main_v16_process(path)
+
+            if vle_action.casefold() == "Encabezado".casefold():
+                self.text_console_log(
+                    "Procesando referencia en estados de cuenta...", "PROCESS"
+                )
+                file_path = (
+                    f"{path}/cedula_iva_acreditable_100.xlsx"
+                    if vle_process.casefold() == "iva".casefold()
+                    else f"{path}/{vle_process}.xlsx"
+                )
+                main_header_process(file_path, vle_process, "icons/logo.png")
+                print("Proceso de referencia")
 
         except Exception as e:
             self.message_box(
@@ -967,19 +994,21 @@ class Ui_fedApp(object):
 
     def dynami_feature_content(self, suff):
         features = {
-            "iva": [
+            "1": [
                 ("diot.xlsx", "sheets.png"),
                 ("egresos.xlsx", "sheets.png"),
+                ("cambio_obligaciones.csv", "sheets.png"),
                 ("HSBC8881.pdf", "pdf.png"),
                 ("BASE2018.pdg", "pdf.png"),
             ],
-            "v0": [
+            "2": [
                 ("mxn.xlsx", "sheets.png"),
                 ("usd.xlsx", "sheets.png"),
+                ("cambio_obligaciones.csv", "sheets.png"),
                 ("aux.pdf", "pdf.png"),
                 ("HSBC5430.pdf", "pdf.png"),
             ],
-            "v16": [
+            "3": [
                 ("rete.xlsx", "sheets.png"),
                 ("tras.xlsx", "sheets.png"),
                 ("cambio_obligaciones.csv", "sheets.png"),
@@ -992,17 +1021,17 @@ class Ui_fedApp(object):
         }
 
         result = {
-            "iva": [
+            "1": [
                 ("cedula_iva_acreditable_100.xlsx", "sheets.png"),
                 ("HSBC8881_underlined.pdf", "pdf.png"),
                 ("BASE2018_underlined.pdg", "pdf.png"),
             ],
-            "v0": [
+            "2": [
                 ("v0.xlsx", "sheets.png"),
                 ("aux_underlined.pdf", "pdf.png"),
                 ("HSBC5430_underlined.pdf", "pdf.png"),
             ],
-            "v16": [
+            "3": [
                 ("v16.xlsx", "sheets.png"),
                 ("aux_underlined.pdf", "pdf.png"),
                 ("HSBC5430_underlined.pdf", "pdf.png"),
@@ -1039,6 +1068,8 @@ class Ui_fedApp(object):
             for file_name, icon_name in items_result
         )
 
+        sufix = MAP_SUFIX_IDX.get(str(suff), "").upper()
+
         html = f"""<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd">
     <html>
     <head>
@@ -1055,8 +1086,7 @@ class Ui_fedApp(object):
         <p style="margin-top:0px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">
             <span style="font-size:12pt;"></span>
             <span style="font-size:12pt; font-weight:500;">Directorio para el proceso</span>
-            <span style="font-size:12pt;"></span>
-            <span style="font-size:12pt; font-weight:500;">{escape(suff)}</span>
+            <span style="font-size:12pt;"></span> <span style="font-size:12pt; font-weight:500;">{escape(sufix)}</span>
         </p>
         {content}
         <p style="margin-top:0px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">

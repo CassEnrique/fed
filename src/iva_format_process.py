@@ -1,106 +1,108 @@
+import re
 from copy import copy
 from pathlib import Path
 
+import openpyxl
 from openpyxl import load_workbook
-from openpyxl.styles import Border, Side
+from openpyxl.formula.translate import Translator
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import column_index_from_string, get_column_letter
 
 
-def copiar_estilos_y_altura(ws, fila_origen, fila_destino, max_col=None):
+def normalize_rfc(value):
+    return str(value).strip().upper() if value is not None else ""
+
+
+def copy_row_style_only(ws, source_row, target_row, max_col):
     """
-    Copia estilos, formatos y altura de una fila a otra.
-    No copia valores para no romper fórmulas o datos existentes.
+    Copia únicamente estilos de una fila a otra, sin copiar valores ni fórmulas.
     """
-    if max_col is None:
-        max_col = ws.max_column
-
-    # Copiar altura de fila
-    if fila_origen in ws.row_dimensions:
-        ws.row_dimensions[fila_destino].height = ws.row_dimensions[fila_origen].height
-
-    # Copiar estilo celda por celda
-    for col in range(1, max_col + 1):
-        celda_origen = ws.cell(row=fila_origen, column=col)
-        celda_destino = ws.cell(row=fila_destino, column=col)
-
-        if celda_origen.has_style:
-            celda_destino._style = copy(celda_origen._style)
-
-        if celda_origen.number_format:
-            celda_destino.number_format = copy(celda_origen.number_format)
-
-        if celda_origen.font:
-            celda_destino.font = copy(celda_origen.font)
-
-        if celda_origen.fill:
-            celda_destino.fill = copy(celda_origen.fill)
-
-        if celda_origen.border:
-            celda_destino.border = copy(celda_origen.border)
-
-        if celda_origen.alignment:
-            celda_destino.alignment = copy(celda_origen.alignment)
-
-        if celda_origen.protection:
-            celda_destino.protection = copy(celda_origen.protection)
-
-
-def limpiar_fila(ws, fila, max_col=None):
-    """
-    Limpia los valores de una fila manteniendo los estilos.
-    """
-    if max_col is None:
-        max_col = ws.max_column
+    # altura de fila
+    if source_row in ws.row_dimensions:
+        ws.row_dimensions[target_row].height = ws.row_dimensions[source_row].height
 
     for col in range(1, max_col + 1):
-        ws.cell(row=fila, column=col).value = None
+        src = ws.cell(row=source_row, column=col)
+        dst = ws.cell(row=target_row, column=col)
+
+        if src.has_style:
+            dst._style = copy(src._style)
+
+        dst.font = copy(src.font)
+        dst.fill = copy(src.fill)
+        dst.border = copy(src.border)
+        dst.alignment = copy(src.alignment)
+        dst.number_format = copy(src.number_format)
+        dst.protection = copy(src.protection)
+
+        # No copiar valor
+        dst.value = None
 
 
-def separar_rfc_por_espacios_xlsx(
-    archivo_xlsx, nombre_hoja=None, columna_rfc=5, fila_inicio=2, filas_a_insertar=3
+def find_rfc_groups(ws, header_row=1, rfc_col=5):
+    """
+    Encuentra grupos consecutivos de RFC en columna E.
+    Retorna lista de tuplas: (start_row, end_row, rfc)
+    """
+    data_start = header_row + 1
+    max_row = ws.max_row
+
+    if max_row < data_start:
+        return []
+
+    groups = []
+    start = data_start
+    current_rfc = normalize_rfc(ws.cell(row=data_start, column=rfc_col).value)
+
+    for row in range(data_start + 1, max_row + 1):
+        rfc = normalize_rfc(ws.cell(row=row, column=rfc_col).value)
+        if rfc != current_rfc:
+            groups.append((start, row - 1, current_rfc))
+            start = row
+            current_rfc = rfc
+
+    groups.append((start, max_row, current_rfc))
+    return groups
+
+
+def insert_blank_styled_rows_per_rfc_group(
+    file_path, sheet_name, header_row=1, rfc_col=5, rows_to_insert=3
 ):
-    """
-    Actualiza el mismo archivo .xlsx insertando filas en blanco
-    cuando cambia el RFC entre una fila y la anterior.
+    wb = load_workbook(file_path)
+    ws = wb[sheet_name] if sheet_name in wb.sheetnames else wb.active
 
-    Parámetros:
-    - archivo_xlsx: ruta del archivo .xlsx a modificar
-    - nombre_hoja: nombre de la hoja a procesar; si es None usa la activa
-    - columna_rfc: número de columna base 1 (E=5)
-    - fila_inicio: primera fila con datos reales (por defecto 2)
-    - filas_a_insertar: cantidad de filas a insertar al detectar cambio
-    """
-    wb = load_workbook(archivo_xlsx)
-    ws = wb[nombre_hoja] if nombre_hoja else wb.active
-
-    ultima_fila = ws.max_row
     max_col = ws.max_column
+    groups = find_rfc_groups(ws, header_row=header_row, rfc_col=rfc_col)
 
-    if ultima_fila < fila_inicio + 1:
-        wb.save(archivo_xlsx)
+    if not groups:
+        wb.save(file_path)
+        print("No se encontraron grupos.")
         return
 
-    # Recorremos de abajo hacia arriba
-    for fila in range(ultima_fila, fila_inicio, -1):
-        valor_actual = ws.cell(row=fila, column=columna_rfc).value
-        valor_anterior = ws.cell(row=fila - 1, column=columna_rfc).value
+    # Insertar de abajo hacia arriba
+    for start_row, end_row, rfc in reversed(groups):
+        insert_at = end_row + 1
+        current_max_row = ws.max_row
 
-        rfc_actual = str(valor_actual).strip() if valor_actual is not None else ""
-        rfc_anterior = str(valor_anterior).strip() if valor_anterior is not None else ""
+        # Mover bloque inferior hacia abajo
+        if insert_at <= current_max_row:
+            ws.move_range(
+                f"A{insert_at}:{ws.cell(row=current_max_row, column=max_col).coordinate}",
+                rows=rows_to_insert,
+                cols=0,
+                translate=True,
+            )
 
-        if not rfc_actual or not rfc_anterior:
-            continue
+        # Usar la última fila del grupo como plantilla de estilo
+        template_row = end_row
 
-        if rfc_actual != rfc_anterior:
-            ws.insert_rows(fila, amount=filas_a_insertar)
+        # Crear filas nuevas vacías pero con estilo
+        for i in range(rows_to_insert):
+            new_row = insert_at + i
+            copy_row_style_only(ws, template_row, new_row, max_col)
 
-            fila_modelo = fila - 1
-
-            for offset in range(filas_a_insertar):
-                nueva_fila = fila + offset
-                copiar_estilos_y_altura(ws, fila_modelo, nueva_fila, max_col=max_col)
-                limpiar_fila(ws, nueva_fila, max_col=max_col)
-
-    wb.save(archivo_xlsx)
+    wb.save(file_path)
+    print(f"Archivo actualizado correctamente: {file_path}")
 
 
 def limpiar_total_usd(
@@ -154,6 +156,82 @@ def limpiar_total_usd(
 
     wb.save(ruta)
     return celdas_limpiadas
+
+
+def actualizar_tipo_cambio(archivo_cambio, archivo_salida):
+    # ============================================
+    CSV_FILE = archivo_cambio
+    EXCEL_FILE = archivo_salida
+    HOJA = "Datos"
+
+    COL_FECHA_CSV = "Fecha_Determinacion"
+    COL_FECHA_EXCEL = "Fecha Registro"
+    MAPEO_COLUMNAS = {"Tipo_de_Cambio": "Tipo de Cambio"}
+    FORMATO_FECHA = "%Y-%m-%d"
+    # ============================================
+
+    print("Cargando archivos...")
+
+    # 1. Leer CSV
+    df_csv = pd.read_csv(CSV_FILE)
+    df_csv[COL_FECHA_CSV] = pd.to_datetime(
+        df_csv[COL_FECHA_CSV], format=FORMATO_FECHA, errors="coerce"
+    )
+
+    # 2. Crear diccionario de actualizaciones
+    df_csv_unicos = df_csv.drop_duplicates(subset=[COL_FECHA_CSV], keep="last")
+    df_csv_unicos["fecha_str"] = df_csv_unicos[COL_FECHA_CSV].dt.strftime("%Y-%m-%d")
+    actualizaciones = df_csv_unicos.set_index("fecha_str")[
+        list(MAPEO_COLUMNAS.keys())
+    ].to_dict("index")
+
+    print(f"CSV: {len(df_csv)} registros")
+    print(f"Fechas disponibles para actualizar: {len(actualizaciones)}")
+
+    # 3. Cargar Excel
+    wb = load_workbook(EXCEL_FILE)
+    ws = wb[HOJA] if HOJA in wb.sheetnames else wb.active
+
+    # 4. Buscar columnas
+    header_row = 1
+    col_indices = {}
+    for csv_col, excel_col in MAPEO_COLUMNAS.items():
+        for cell in ws[header_row]:
+            if cell.value == excel_col:
+                col_indices[excel_col] = cell.column
+                break
+
+    fecha_col_idx = None
+    for cell in ws[header_row]:
+        if cell.value == COL_FECHA_EXCEL:
+            fecha_col_idx = cell.column
+            break
+
+    if fecha_col_idx is None:
+        print(f"ERROR: No se encontró la columna '{COL_FECHA_EXCEL}'")
+        return
+
+    # 5. Actualizar filas
+    actualizados = 0
+    for row in range(2, ws.max_row + 1):
+        fecha_val = ws.cell(row=row, column=fecha_col_idx).value
+        fecha_str = parse_fecha_excel(fecha_val)
+
+        if fecha_str is None:
+            continue
+
+        if fecha_str in actualizaciones:
+            for csv_col, excel_col in MAPEO_COLUMNAS.items():
+                if excel_col in col_indices:
+                    ws.cell(
+                        row=row, column=col_indices[excel_col]
+                    ).value = actualizaciones[fecha_str][csv_col]
+            actualizados += 1
+
+    print(f"Registros actualizados: {actualizados}")
+
+    wb.save(EXCEL_FILE)
+    print(f"Archivo guardado: {EXCEL_FILE}")
 
 
 COLUMNAS_SUMAR = {
@@ -221,7 +299,16 @@ def insertar_totales_por_rfc(archivo_xlsx, nombre_hoja=None):
             (rfc_actual != rfc_siguiente) or (siguiente_fila > ultima_fila_datos)
         ) and rfc_actual != "":
             fila_insertar = fila_actual + 1
-            ws.insert_rows(fila_insertar, amount=1)
+            current_max_row = ws.max_row
+            max_col = ws.max_column
+
+            # ws.insert_rows(fila_insertar, amount=1)
+            ws.move_range(
+                f"A{fila_insertar}:{ws.cell(row=current_max_row, column=max_col).coordinate}",
+                rows=1,
+                cols=0,
+                translate=True,
+            )
             ultima_fila_datos += 1
             rango_sumatorias.append(fila_insertar)
 
@@ -322,7 +409,7 @@ def sumar_por_grupos_multimoneda(archivo_xlsx, nombre_hoja=None):
     COL_NUMERO = 3  # C
     COL_RFC = 5  # E
     COL_MONEDA = 16  # P
-    COL_MONTO = 23  # W
+    COL_MONTO = 25  # Y
 
     # Fila donde inician los datos reales
     fila_inicio_datos = 2  # Fila 2 real en Excel
@@ -481,7 +568,14 @@ def asignar_consecutivos_polizas(archivo_xlsx, nombre_hoja=None):
 
             p_contador += 1
             fila_destino = filas_datos[end_idx]["row_index"]
-            ws.cell(row=fila_destino, column=COL_DESTINO).value = f"P.{p_contador}"
+
+            celda_ref_edo = ws.cell(row=fila_destino, column=COL_DESTINO)
+            celda_ref_edo.value = f"P.{p_contador}"
+            celda_ref_edo.font = Font(
+                bold=True, color="DC0042", size=12
+            )  # Negritas y color rojo
+            celda_ref_edo.alignment = Alignment(horizontal="center", vertical="center")
+
             asignaciones += 1
             idx = end_idx + 1
 
@@ -503,7 +597,12 @@ def asignar_consecutivos_polizas(archivo_xlsx, nombre_hoja=None):
                 end_idx += 1
 
             fila_destino = filas_datos[end_idx]["row_index"]
-            ws.cell(row=fila_destino, column=COL_DESTINO).value = poliza_asignada
+            celda_ref_edo = ws.cell(row=fila_destino, column=COL_DESTINO)
+            celda_ref_edo.value = poliza_asignada
+            celda_ref_edo.font = Font(
+                bold=True, color="DC0042", size=12
+            )  # Negritas y color rojo
+            celda_ref_edo.alignment = Alignment(horizontal="center", vertical="center")
             asignaciones += 1
             idx = end_idx + 1
 
@@ -538,7 +637,7 @@ def aplicar_borde_inferior_folios(archivo_xlsx, nombre_hoja=None):
         return
 
     # Borde inferior similar al original
-    borde_inferior = Side(style="thin", color="000000")
+    borde_inferior = Side(style="medium", color="000000")
 
     # Recorrer desde la fila 2 hasta la penúltima
     for fila in range(2, ultima_fila):
@@ -607,27 +706,28 @@ def aplicar_borde_inferior_folios(archivo_xlsx, nombre_hoja=None):
 
 
 def main_iva_format_process(file_name):
+    archivo_cambio = "cambio_obligaciones.csv"
+
     # Paso 1, limpiar la columna Total USD
     total = limpiar_total_usd(file_name)
     print(f"Se limpiaron {total} celdas en Total USD.")
 
-    # Paso 2, separar por RFC
-    separar_rfc_por_espacios_xlsx(
-        archivo_xlsx=file_name,
-        nombre_hoja=None,  # o por ejemplo "Hoja1"
-        columna_rfc=5,  # E = 5
-        fila_inicio=2,  # encabezados en fila 1
-        filas_a_insertar=3,
+    # Paso 2,
+    actualizar_tipo_cambio(archivo_cambio, file_name)
+
+    # Paso 3, separar por RFC
+    insert_blank_styled_rows_per_rfc_group(
+        file_path=file_name, sheet_name=None, header_row=1, rfc_col=5, rows_to_insert=3
     )
 
-    # Paso 3,
+    # Paso 4,
     insertar_totales_por_rfc(file_name)
 
-    # Paso 4,
+    # Paso 5,
     sumar_por_grupos_multimoneda(file_name)
 
-    # Paso 5,
+    # Paso 6,
     _ = asignar_consecutivos_polizas(file_name)
 
-    # Paso 6
+    # Paso 7,
     aplicar_borde_inferior_folios(file_name)

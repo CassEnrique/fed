@@ -7,7 +7,7 @@ from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
 
 
-def actualizar_excel_con_imagen(ruta_archivo, ruta_imagen):
+def actualizar_excel_con_imagen(ruta_archivo, suffix, ruta_imagen):
     try:
         # --- PASO 1: OBTENER VALOR DE LA FECHA (MODO LECTURA) ---
         wb_lectura = openpyxl.load_workbook(ruta_archivo, data_only=True)
@@ -123,15 +123,9 @@ def actualizar_excel_con_imagen(ruta_archivo, ruta_imagen):
         traceback.print_exc()
 
 
-def main_header_process(path):
-    sufix = "v0"
-    mounth = "sep"
-    directorio = f"{sufix}/2025/{mounth}"
-    assets = "assets"
-    archivo_excel = f"{directorio}/{sufix}_{mounth}.xlsx"
-    archivo_imagen = f"{assets}/logo.png"
+def main_header_process(file_path, suffix, logo):
 
-    if os.path.exists(archivo_excel):
-        actualizar_excel_con_imagen(archivo_excel, archivo_imagen)
+    if os.path.exists(file_path):
+        actualizar_excel_con_imagen(file_path, suffix, logo)
     else:
-        print(f"No existe: {archivo_excel}")
+        print(f"No existe: {file_path}")
