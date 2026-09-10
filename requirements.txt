@@ -6,14 +6,19 @@ qtawesome==1.3.1
 # --- Procesamiento de Datos y Excel ---
 pandas>=2.0.0
 openpyxl>=3.1.0
-numpy
+numpy==1.26.4
 rapidfuzz>=3.0.0
 
 # --- Visión Artificial y OCR ---
-opencv-python
-easyocr
+opencv-python-headless==4.10.0.84
+easyocr==1.7.1
 
 # --- Manipulación de PDF e Imágenes---
-pymupdf
+pymupdf==1.24.9
 pdf2image
-Pillow
+pillow==12.2.0
+
+
+# --- Herramientas especificas ---
+pyinstaller==5.13.2
+setuptools==69.5.1
