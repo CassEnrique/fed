@@ -2,10 +2,17 @@ import re
 from datetime import datetime
 
 import cv2
-import easyocr
 import fitz  # PyMuPDF
 import numpy as np
 from openpyxl import load_workbook
+
+# import easyocr
+
+
+def crear_reader():
+    import easyocr
+
+    return easyocr.Reader(["es"], gpu=False)
 
 
 def extraer_caracteres_alfabeticos(texto):

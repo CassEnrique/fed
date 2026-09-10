@@ -26,19 +26,32 @@ jobs:
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
+      - name: Clean previous build folders
+        shell: powershell
+        run: |
+          if (Test-Path build) { Remove-Item -Recurse -Force build }
+          if (Test-Path dist) { Remove-Item -Recurse -Force dist }
+
       - name: Install dependencies
         run: |
           pip install setuptools==69.5.1
-          pip install -r requirements.txt
           pip install pyinstaller==5.13.2
+          pip install -r requirements.txt
 
       - name: Build executable
         run: pyinstaller --clean interface.spec
 
-      - name: Upload dist artifact
+      - name: Verify output
+        shell: powershell
+        run: |
+          if (!(Test-Path "dist/FED/FED.exe")) {
+            Write-Error "No se encontró dist/FED/FED.exe"
+            exit 1
+          }
+          Get-ChildItem -Recurse dist/FED | Select-Object FullName
+
+      - name: Upload FED folder artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FED-windows-build
-          path: |
-            dist/**
-            build/**
+          name: FED-windows
+          path: dist/FED
