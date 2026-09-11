@@ -945,7 +945,7 @@ class Ui_fedApp(object):
                 if vle_action.casefold() == "Formato".casefold():
                     self.text_console_log("Formato final al archivo...", "PROCESS")
                     file_name = f"{path}/cedula_iva_acreditable_100.xlsx"
-                    main_iva_format_process(file_name)
+                    main_iva_format_process(path, file_name)
 
                 if vle_action.casefold() == "Referencia Bancos".casefold():
                     self.text_console_log(

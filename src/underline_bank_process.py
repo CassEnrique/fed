@@ -2,16 +2,17 @@ import re
 from datetime import datetime
 
 import cv2
-import easyocr
 import fitz  # PyMuPDF
 import numpy as np
 from openpyxl import load_workbook
+
+# import easyocr
 
 
 def crear_reader():
     import easyocr
 
-    return easyocr.Reader(["es"], gpu=False)
+    return easyocr.Reader(["es", "en"], gpu=False)
 
 
 def extraer_caracteres_alfabeticos(texto):
@@ -96,7 +97,8 @@ def contiene_flag_break(texto_de_la_pagina, flag_break):
 
 def resaltar_por_fecha_y_monto(pdf_entrada, pdf_salida, items_a_buscar):
     print("🤖 Inicializando motor OCR...")
-    reader = easyocr.Reader(["es", "en"])
+    # reader = easyocr.Reader(["es", "en"])
+    reader = crear_reader()
     doc = fitz.open(pdf_entrada)
     encontrados_totales = 0
 

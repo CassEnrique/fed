@@ -1,8 +1,10 @@
 import re
 from copy import copy
+from datetime import datetime
 from pathlib import Path
 
 import openpyxl
+import pandas as pd
 from openpyxl import load_workbook
 from openpyxl.formula.translate import Translator
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -158,6 +160,54 @@ def limpiar_total_usd(
     return celdas_limpiadas
 
 
+def parse_fecha_excel(valor):
+    """Convierte cualquier formato de fecha del Excel a 'YYYY-MM-DD'"""
+    if valor is None:
+        return None
+
+    # Si ya es datetime
+    if isinstance(valor, datetime):
+        return valor.strftime("%Y-%m-%d")
+
+    # Convertir a string y limpiar
+    fecha_str = str(valor).strip()
+
+    # Intentar conversión normal primero
+    try:
+        return pd.to_datetime(fecha_str).strftime("%Y-%m-%d")
+    except:
+        pass
+
+    # Manejar formato "01/Ago/2025"
+    meses_es = {
+        "Ene": "01",
+        "Feb": "02",
+        "Mar": "03",
+        "Abr": "04",
+        "May": "05",
+        "Jun": "06",
+        "Jul": "07",
+        "Ago": "08",
+        "Sep": "09",
+        "Oct": "10",
+        "Nov": "11",
+        "Dic": "12",
+    }
+
+    try:
+        partes = fecha_str.split("/")
+        if len(partes) == 3:
+            dia = partes[0].zfill(2)
+            mes_abbr = partes[1].capitalize()
+            anio = partes[2]
+            mes = meses_es.get(mes_abbr, "01")
+            return f"{anio}-{mes}-{dia}"
+    except:
+        pass
+
+    return None
+
+
 def actualizar_tipo_cambio(archivo_cambio, archivo_salida):
     # ============================================
     CSV_FILE = archivo_cambio
@@ -165,9 +215,10 @@ def actualizar_tipo_cambio(archivo_cambio, archivo_salida):
     HOJA = "Datos"
 
     COL_FECHA_CSV = "Fecha_Determinacion"
-    COL_FECHA_EXCEL = "Fecha Registro"
-    MAPEO_COLUMNAS = {"Tipo_de_Cambio": "Tipo de Cambio"}
+    COL_FECHA_EXCEL = "Fecha"
+    MAPEO_COLUMNAS = {"Tipo_de_Cambio": "TC"}
     FORMATO_FECHA = "%Y-%m-%d"
+    COL_MONEDA = "Moneda"
     # ============================================
 
     print("Cargando archivos...")
@@ -212,10 +263,19 @@ def actualizar_tipo_cambio(archivo_cambio, archivo_salida):
         return
 
     # 5. Actualizar filas
+    formato_contable = "#,##0.0000"
     actualizados = 0
     for row in range(2, ws.max_row + 1):
         fecha_val = ws.cell(row=row, column=fecha_col_idx).value
         fecha_str = parse_fecha_excel(fecha_val)
+
+        moneda_val = ws.cell(row=row, column=16).value
+
+        if moneda_val == "MXN":
+            celda = ws.cell(row=row, column=col_indices["TC"])
+            celda.value = 1.0000
+            celda.number_format = formato_contable
+            continue
 
         if fecha_str is None:
             continue
@@ -223,9 +283,9 @@ def actualizar_tipo_cambio(archivo_cambio, archivo_salida):
         if fecha_str in actualizaciones:
             for csv_col, excel_col in MAPEO_COLUMNAS.items():
                 if excel_col in col_indices:
-                    ws.cell(
-                        row=row, column=col_indices[excel_col]
-                    ).value = actualizaciones[fecha_str][csv_col]
+                    celda = ws.cell(row=row, column=col_indices[excel_col])
+                    celda.value = actualizaciones[fecha_str][csv_col]
+                    celda.number_format = formato_contable
             actualizados += 1
 
     print(f"Registros actualizados: {actualizados}")
@@ -705,8 +765,8 @@ def aplicar_borde_inferior_folios(archivo_xlsx, nombre_hoja=None):
     wb.save(archivo_xlsx)
 
 
-def main_iva_format_process(file_name):
-    archivo_cambio = "cambio_obligaciones.csv"
+def main_iva_format_process(path, file_name):
+    archivo_cambio = f"{path}/cambio_obligaciones.csv"
 
     # Paso 1, limpiar la columna Total USD
     total = limpiar_total_usd(file_name)
