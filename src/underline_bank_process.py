@@ -199,6 +199,8 @@ def resaltar_por_fecha_y_monto(pdf_entrada, pdf_salida, items_a_buscar):
 
 
 def procesar_por_suff(suff, path, file_name, config):
+    path = Path(path).resolve()  # convierte a Path y resuelve rutas absolutas
+
     suff_key = suff.lower()
     if suff_key not in config:
         return
@@ -207,7 +209,14 @@ def procesar_por_suff(suff, path, file_name, config):
     banks = datos.get("banks", [])
     name_sheet = datos.get("sheet_name", "")
 
-    archivo_base = f"{path}/{file_name}.xlsx"
+    archivo_base = path / "{file_name}.xlsx"
+
+    if not archivo_base.exists() or not egresos_path.exists():
+        faltante = "diot.xlsx" if not diot_path.exists() else "egresos.xlsx"
+        msg = f"No se encontró el archivo necesario: {faltante}"
+        self.text_console_log(msg, "ERROR")
+        # Este RAISE detiene la función AQUÍ MISMO y va directo al except de la GUI
+        raise FileNotFoundError(msg)
 
     for bank in banks:
         bank_file = bank["file"]

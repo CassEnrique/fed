@@ -2,6 +2,7 @@ import glob
 import io
 import os
 import re
+from pathlib import Path
 
 import openpyxl
 import pandas as pd
@@ -259,15 +260,9 @@ def crear_unificar_pdf_xlsx(
     print("🎉 Proceso completado exitosamente.")
 
 
-def conciliar_y_actualizar():
-    # --- Configuración de Rutas (Se mantiene igual) ---
-    dir_name = "merge"
-    assets = "flujograma/assets"
-    month = "oct"
-    directorio_facturas = f"flujograma/2025/{month}/{dir_name}"
-
-    archivo_a = f"{assets}/facturas_folios.xlsx"
-    archivo_b = f"{assets}/Indice_Liberacion_Lingote_2025.xlsx"
+def conciliar_y_actualizar(
+    directorio_facturas, facturas_folios, indice_liberacion, sheet_name
+):
 
     cabecera_trazabilidad = [
         "Folio de Solicitud",
@@ -286,8 +281,21 @@ def conciliar_y_actualizar():
     ]
 
     try:
-        df_a = pd.read_excel(archivo_a, usecols=[0, 1], sheet_name="Oct")
-        df_b = pd.read_excel(archivo_b)
+        # 1. Cargamos el objeto Excel para inspeccionar las hojas
+        xl = pd.ExcelFile(facturas_folios)
+
+        # 2. Validamos si el nombre existe en la lista de hojas
+        # xl.sheet_names devuelve una lista con los nombres de todas las hojas
+        if sheet_name in xl.sheet_names:
+            hoja_a_cargar = sheet_name
+        else:
+            # Si no existe, usamos 0 para que cargue la primera hoja (la activa por defecto)
+            hoja_a_cargar = 0
+            print(f"La hoja '{sheet_name}' no existe. Cargando hoja por defecto.")
+
+        # 3. Leemos el DataFrame usando la variable definida
+        df_a = pd.read_excel(xl, usecols=[0, 1], sheet_name=hoja_a_cargar)
+        df_b = pd.read_excel(indice_liberacion)
 
         def limpiar_folio(serie):
             return (
@@ -413,24 +421,64 @@ def actualizar_excel_seguro(ruta_archivo, cabecera, datos):
         print(f"   ❌ Error al actualizar {os.path.basename(ruta_archivo)}: {e}")
 
 
-def main_flujograma_process(path):
-    name = "merge"
-    mounth = "oct"
+def main_flujograma_process(self, path):
+    name = path.split("\\") if "/" not in path else path.split("/")
+    name = name[-1]
+    path = Path(path).resolve()
 
-    pdf_dirs = [f"flujograma/2025/{mounth}/{name}"]
-    assets_dir = f"flujograma/2025/{mounth}/{name}/assets"
-    excel_output_dir = f"flujograma/2025/{mounth}/{name}"
+    assets_dir = f"{path}/assets"
+    excel_output_dir = path / name
     img_process_path = (
-        f"flujograma/2025/{mounth}/proceso.png"  # Imagen fija para la hoja 'Proceso'
+        path / "proceso.png"  # Imagen fija para la hoja 'Proceso'
     )
+
+    img_process_path = (
+        img_process_path
+        if img_process_path.exists()
+        else "icons/flujograma_process.png"
+    )
+
+    facturas_folios = path / "facturas_folios.xlsx"
+    indice_liberacion = path / "Indice_Liberacion_Lingote_2025.xlsx"
+
+    # ============================================================
+    # VALIDACIÓN PREVIA
+    # ============================================================
+    if not path.exists() or not path.is_dir():
+        msg = f"La ruta no existe o no es un directorio: {path}"
+        if hasattr(self, "text_console_log"):
+            self.text_console_log(msg, "ERROR")
+        raise FileNotFoundError(msg)
+
+    # Buscar al menos un PDF (cualquier nombre)
+    pdf_files = list(path.glob("*.pdf"))
+
+    if not pdf_files:
+        msg = "No se ha encontrado archivo para procesar"
+        if hasattr(self, "text_console_log"):
+            self.text_console_log(msg, "ERROR")
+        raise FileNotFoundError(msg)
+
+    # ============================================================
+    # VALIDACIÓN PREVIA (Aquí detona y sale antes de intentar nada)
+    # Si no existen los insumos, lanzamos el error de inmediato
+    # ============================================================
+    if not facturas_folios.exists() or not indice_liberacion.exists():
+        faltante = (
+            "facturas_folios.xlsx"
+            if not facturas_folios.exists()
+            else "Indice_Liberacion_Lingote_2025.xlsx"
+        )
+        msg = f"No se encontró el archivo necesario: {faltante}"
+        self.text_console_log(msg, "ERROR")
+        # Este RAISE detiene la función AQUÍ MISMO y va directo al except de la GUI
+        raise FileNotFoundError(msg)
 
     dpi = 150
 
     os.makedirs(assets_dir, exist_ok=True)
-    os.makedirs(excel_output_dir, exist_ok=True)
+    # os.makedirs(excel_output_dir, exist_ok=True)
 
-    crear_unificar_pdf_xlsx(
-        pdf_dirs, dpi, assets_dir, img_process_path, excel_output_dir
-    )
+    crear_unificar_pdf_xlsx([path], dpi, assets_dir, img_process_path, path)
 
-    conciliar_y_actualizar()
+    conciliar_y_actualizar(path, facturas_folios, indice_liberacion, "")

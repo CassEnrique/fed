@@ -7,9 +7,11 @@ from datetime import datetime
 from html import escape
 
 import resources_rc
+from flujograma_process import main_flujograma_process
 from header_process import main_header_process
 from iva_format_process import main_iva_format_process
 from iva_process import main_iva_process
+from merge_process import main_merge_process
 from PyQt5 import QtCore, QtGui, QtWidgets
 from underline_aux_process import main_underline_aux_process
 from underline_bank_process import main_underline_bank_process
@@ -95,12 +97,16 @@ class Ui_fedApp(object):
         fedApp.resize(1200, 700)
         fedApp.setWindowTitle("FED - Sistema de Devoluciones")
 
+        # Variable para guardar la posición del mouse
+        self.old_pos = None
+
         self.wWrapper = QtWidgets.QWidget(fedApp)
         self.wWrapper.setObjectName("wWrapper")
         wrapperLayout = QtWidgets.QHBoxLayout(self.wWrapper)
         wrapperLayout.setContentsMargins(10, 10, 10, 10)
         wrapperLayout.setSpacing(10)
-        self.selected_directory = None
+        self.first_directory = None
+        self.second_directory = None
 
         # ============ SIDEBAR (ASIDE) ============
         self.wAsider = QtWidgets.QWidget(self.wWrapper)
@@ -547,6 +553,7 @@ class Ui_fedApp(object):
         self.bProcessMergeFile.setObjectName("bProcessMergeFile")
         self.bProcessMergeFile.setMinimumHeight(40)
         self.bProcessMergeFile.setMaximumWidth(160)
+        self.bProcessMergeFile.clicked.connect(self.execute_work_process)
         mergeLayout.addWidget(self.bProcessMergeFile)
         mergeLayout.addStretch()
 
@@ -590,6 +597,7 @@ class Ui_fedApp(object):
         self.bProcessFlowchart.setObjectName("bProcessFlowchart")
         self.bProcessFlowchart.setMinimumHeight(40)
         self.bProcessFlowchart.setMaximumWidth(160)
+        self.bProcessFlowchart.clicked.connect(self.execute_work_process)
         flowLayout.addWidget(self.bProcessFlowchart)
         flowLayout.addStretch()
 
@@ -634,7 +642,7 @@ class Ui_fedApp(object):
         compressLayout.addWidget(self.buttonProcessCP)
         compressLayout.addStretch()
 
-        self.tabWidgetProcess.addTab(self.compressFile, "📦 Comprimir")
+        # self.tabWidgetProcess.addTab(self.compressFile, "📦 Comprimir")
 
         # ===== TAB 4: DESCARGA MASIVA =====
         self.bulkDownload = QtWidgets.QWidget()
@@ -701,7 +709,7 @@ class Ui_fedApp(object):
         bulkLayout.addWidget(self.bProcessBulkDownload)
         bulkLayout.addStretch()
 
-        self.tabWidgetProcess.addTab(self.bulkDownload, "⬇️ Descarga Masiva")
+        # self.tabWidgetProcess.addTab(self.bulkDownload, "⬇️ Descarga Masiva")
 
         # ===== TAB 5: ENCABEZADO =====
         self.setHeading = QtWidgets.QWidget()
@@ -742,7 +750,7 @@ class Ui_fedApp(object):
         headingLayout.addWidget(self.bProcessSetHeading)
         headingLayout.addStretch()
 
-        self.tabWidgetProcess.addTab(self.setHeading, "📝 Encabezado")
+        # self.tabWidgetProcess.addTab(self.setHeading, "📝 Encabezado")
 
         processWorkLayout.addWidget(self.tabWidgetProcess, 1)
         self.stackedWidget.addWidget(self.processWork)
@@ -761,6 +769,19 @@ class Ui_fedApp(object):
         # ✅ CONEXIÓN DEL BOTÓN "ESTABLECER" PARA CARGAR DIRECTORIO
         self.buttonPath.clicked.connect(lambda: self.open_directory_dialog(fedApp))
 
+        self.buttonSearchFF.clicked.connect(
+            lambda: self.cargar_archivo_xlsx("merge_ff")
+        )
+        self.buttonSearchSF.clicked.connect(
+            lambda: self.cargar_archivo_xlsx("merge_sf")
+        )
+        self.buttonSearchF.clicked.connect(
+            lambda: self.open_directory_dialog(fedApp, False, "flowchart")
+        )
+        self.buttonSearchCompressPath.clicked.connect(
+            lambda: self.open_directory_dialog(fedApp, False, "compress")
+        )
+
         self.retranslateUi(fedApp)
         self.stackedWidget.setCurrentIndex(
             0
@@ -771,8 +792,8 @@ class Ui_fedApp(object):
     def toggle_action_items(self, idx):
         mapa_acciones = {
             "1": ["Procesar", "Formato", "Referencia Bancos", "Encabezado"],
-            "2": ["Procesar", "Subrayado Auxiliar", "Encabezado"],
-            "3": ["Procesar", "Subrayado Auxiliar", "Encabezado"],
+            "2": ["Procesar", "Subrayado Auxiliar", "Referencia Bancos", "Encabezado"],
+            "3": ["Procesar", "Subrayado Auxiliar", "Referencia Bancos", "Encabezado"],
         }
 
         """Carga acciones en el combo box con un ítem placeholder."""
@@ -873,7 +894,32 @@ class Ui_fedApp(object):
 
         return indice_seleccionado, texto_seleccionado
 
-    def open_directory_dialog(self, parent):
+    def open_xlsx_dialog(self, parent):
+        """
+        Abre un diálogo para seleccionar un archivo XLSX
+
+        Returns:
+            str: Ruta del archivo, o None si se cancela
+        """
+        file_filter = "Excel Files (*.xlsx);;All Files (*.*)"
+
+        file_path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            parent, "Seleccionar Archivo Excel", "", file_filter
+        )
+
+        if not file_path:
+            return None
+
+        # Validar extensión
+        if not file_path.lower().endswith(".xlsx"):
+            QtWidgets.QMessageBox.warning(
+                parent, "Archivo Inválido", "Solo se aceptan archivos .xlsx"
+            )
+            return None
+
+        return file_path
+
+    def open_directory_dialog(self, parent, show_tree=True, current_tab=""):
         """
         Abre un diálogo para seleccionar un directorio y lo carga en el TreeWidget
         """
@@ -887,8 +933,40 @@ class Ui_fedApp(object):
         if directory:
             # Cargar el directorio en el TreeWidget
             # self.buttonProcess.clicked.connect(lambda: self.procesar_boton(directory))
-            self.selected_directory = directory
-            self.dir_manager.load_directory(directory, self.path)
+            self.first_directory = directory
+            if show_tree and not current_tab:
+                self.dir_manager.load_directory(directory, self.path)
+
+            if not show_tree and current_tab:
+                self.work_process(current_tab)
+
+    def cargar_archivo_xlsx(self, button_type):
+        """Abre el diálogo y carga el archivo en la variable"""
+        archivo_xlsx = self.open_xlsx_dialog(fedApp)
+
+        if archivo_xlsx:
+            print(f"Archivo cargado: {archivo_xlsx}")
+            # Ahora puedes usar self.archivo_xlsx en cualquier otro método
+            if button_type == "merge_ff":
+                self.first_directory = archivo_xlsx
+            if button_type == "merge_sf":
+                self.second_directory = archivo_xlsx
+            self.work_process(button_type)
+
+    def work_process(self, current_tab):
+        current_index_tab = self.tabWidgetProcess.currentIndex()
+
+        if current_index_tab == 0:
+            if current_tab == "merge_ff":
+                self.labelSearchFF.setText(self.first_directory)
+            if current_tab == "merge_sf":
+                self.labelSearchSF.setText(self.second_directory)
+
+        if current_index_tab == 1:
+            self.labelSearchF.setText(self.first_directory)
+
+        if current_index_tab == 2:
+            self.labelSearchCompressPath.setText(self.first_directory)
 
     def retranslateUi(self, fedApp):
         _translate = QtCore.QCoreApplication.translate
@@ -915,7 +993,7 @@ class Ui_fedApp(object):
 
     def ejecutar_proceso(self):
         # Si la variable está vacía o es None, detonamos el mensaje
-        if not self.selected_directory:
+        if not self.first_directory:
             self.message_box(
                 "Algo ha pasado!",
                 "No se ha seleccionado un directorio de trabajo",
@@ -924,7 +1002,7 @@ class Ui_fedApp(object):
             return  # Salimos de la función para no procesar nada
 
         # Si pasa la validación, llamamos a la lógica real
-        self.procesar_boton(self.selected_directory)
+        self.procesar_boton(self.first_directory)
 
     def procesar_boton(self, path):
         idx_process, vle_process = self.obtener_proceso_fed()
@@ -990,6 +1068,60 @@ class Ui_fedApp(object):
             # --- DESBLOQUEAR ---
             # Se pone en 'finally' para que si el proceso falla (da error),
             # la pantalla no se quede bloqueada para siempre.
+            self.desbloquear_pantalla()
+
+    def execute_work_process(self):
+        # Si la variable está vacía o es None, detonamos el mensaje
+        if not self.first_directory or not self.second_directory:
+            archivo_faltante = (
+                "Primer Archivo" if not self.first_directory else "Segundo Archivo"
+            )
+            self.message_box(
+                "Algo ha pasado!",
+                f"No se ha seleccionado un directorio para el proceso. Falta {archivo_faltante}",
+                "wrg",
+            )
+            return  # Salimos de la función para no procesar nada
+
+        idx_tab_process = self.tabWidgetProcess.currentIndex()
+
+        # Si pasa la validación, llamamos a la lógica real
+        self.logic_work_process(self.first_directory, idx_tab_process)
+
+    def logic_work_process(self, path, idx_tab_process):
+        self.bloquear_pantalla()
+
+        try:
+            if idx_tab_process == 0:
+                self.message_box(
+                    "Procesos de Trabajo", "Se ha iniciado el proceso Unir Archivos..."
+                )
+                self.text_console_log(
+                    "Se ha iniciado el proceso Unir Archivos...", "INFO"
+                )
+                main_merge_process(self, self.first_directory, self.second_directory)
+
+            if idx_tab_process == 1:
+                self.message_box(
+                    "Procesos de Trabajo", "Se ha iniciado el proceso Flujograma..."
+                )
+                self.text_console_log("Se ha iniciado el proceso Flujograma...", "INFO")
+                main_flujograma_process(self, path)
+
+            if idx_tab_process == 2:
+                print("ejecutando")
+
+            if idx_tab_process == 3:
+                print("ejecutando")
+
+            if idx_tab_process == 4:
+                print("ejecutando")
+
+        except Exception as e:
+            self.message_box(
+                "Error Crítico", f"Ocurrió un error inesperado: {e}", "err"
+            )
+        finally:
             self.desbloquear_pantalla()
 
     def dynami_feature_content(self, suff):
@@ -1099,6 +1231,24 @@ class Ui_fedApp(object):
 
         _translate = QtCore.QCoreApplication.translate
         self.textSpecs.setHtml(_translate("fedApp", html))
+
+    def mousePressEvent(self, event):
+        # Verificamos: Click Izquierdo Y Tecla Meta (Windows/Super) presionada
+        if (
+            event.button() == QtCore.Qt.LeftButton
+            and QtWidgets.QApplication.keyboardModifiers() == QtCore.Qt.MetaModifier
+        ):
+            self.old_pos = event.globalPos()
+
+    def mouseMoveEvent(self, event):
+        # Si tenemos una posición guardada (significa que se cumplen las condiciones)
+        if self.old_pos is not None:
+            delta = QtCore.QPoint(event.globalPos() - self.old_pos)
+            self.move(self.x() + delta.x(), self.y() + delta.y())
+            self.old_pos = event.globalPos()
+
+    def mouseReleaseEvent(self, event):
+        self.old_pos = None
 
 
 def applyModernStyle(app):

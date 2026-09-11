@@ -1,4 +1,5 @@
 from copy import copy
+from pathlib import Path
 
 import openpyxl
 from openpyxl.utils import get_column_letter
@@ -145,17 +146,44 @@ def ejecutar_proceso_unir_archivo(file_aax, file_abx, sheet_name, output_file):
     wb_merged.close()
 
 
-def main_merge_process(path):
+def main_merge_process(self, first_path, second_path):
     # ====================== CONFIGURACIÓN ======================
+    # path = directorio = os.path.dirname(first_path)
+    path = str(Path(first_path).parent)
 
-    # dir = "v0/assets"
-    dir = "public"
-
-    file_aax = f"{dir}/_ventas.xlsx"
-    file_abx = f"{dir}/ventas.xlsx"
+    first_path = Path(first_path).resolve()
+    second_path = Path(second_path).resolve()
 
     sheet_name = None
 
-    output_file = f"{dir}/v.xlsx"
+    output_file = f"{path}/merge.xlsx"
 
-    ejecutar_proceso_unir_archivo(file_aax, file_abx, sheet_name, output_file)
+    # ============================================================
+    # VALIDACIÓN PREVIA (Aquí detona y sale antes de intentar nada)
+    # Si no existen los insumos, lanzamos el error de inmediato
+    # ============================================================
+    if not first_path.exists() or not second_path.exists():
+        faltante = first_path if not first_path.exists() else second_path
+        msg = f"No se encontró el archivo necesario: {faltante}"
+        self.text_console_log(msg, "ERROR")
+        # Este RAISE detiene la función AQUÍ MISMO y va directo al except de la GUI
+        raise FileNotFoundError(msg)
+
+    # ============================================================
+    # 3. Llamar a las siguientes funciones (ahora es seguro)
+    # ============================================================
+    try:
+        ejecutar_proceso_unir_archivo(first_path, second_path, sheet_name, output_file)
+        print("✅ Proceso Unir Archivos completado exitosamente")
+        self.text_console_log(
+            "✅ Proceso Unir Archivos completado exitosamente", "PROCESS"
+        )
+        self.message_box(
+            "Unir Archivos", "Proceso Unir Archivos completado exitosamente...", "ok"
+        )
+    except FileNotFoundError as e:
+        print(f"❌ Archivo no encontrado: {e}")
+        self.text_console_log(f"❌ Archivo no encontrado: {e}", "INFO")
+    except Exception as e:
+        print(f"❌ Error inesperado: {e}")
+        self.text_console_log(f"❌ Error inesperado: {e}", "ERROR")
