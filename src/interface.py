@@ -98,6 +98,9 @@ class Ui_fedApp(object):
         fedApp.setWindowTitle("FED - Sistema de Devoluciones")
 
         # Variable para guardar la posición del mouse
+        # Variables para el arrastre
+        self.dragging = False
+        self.offset = QtCore.QPoint()
         self.old_pos = None
 
         self.wWrapper = QtWidgets.QWidget(fedApp)
@@ -1239,22 +1242,35 @@ class Ui_fedApp(object):
         self.textSpecs.setHtml(_translate("fedApp", html))
 
     def mousePressEvent(self, event):
-        # Verificamos: Click Izquierdo Y Tecla Meta (Windows/Super) presionada
-        if (
-            event.button() == QtCore.Qt.LeftButton
-            and QtWidgets.QApplication.keyboardModifiers() == QtCore.Qt.MetaModifier
-        ):
-            self.old_pos = event.globalPos()
+        # Detectar si se presiona Meta (o Ctrl en macOS por ciertos comportamientos)
+        modifiers = event.modifiers()
+
+        # En macOS, Meta es la tecla "Command", pero a veces hay que ajustar
+        is_meta_pressed = (
+            modifiers & QtCore.Qt.MetaModifier  # Meta/Command
+            or modifiers
+            & QtCore.Qt.ControlModifier  # A veces en macOS se usa Ctrl como fallback
+        )
+
+        if event.button() == QtCore.Qt.RightButton and is_meta_pressed:
+            self.dragging = True
+            self.offset = event.globalPos() - self.pos()
+        else:
+            super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
-        # Si tenemos una posición guardada (significa que se cumplen las condiciones)
-        if self.old_pos is not None:
-            delta = QtCore.QPoint(event.globalPos() - self.old_pos)
-            self.move(self.x() + delta.x(), self.y() + delta.y())
-            self.old_pos = event.globalPos()
+        if self.dragging:
+            # Actualizamos la posición de la ventana
+            new_pos = event.globalPos() - self.offset
+            self.move(new_pos)
+        else:
+            super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
-        self.old_pos = None
+        if event.button() == QtCore.Qt.RightButton:
+            self.dragging = False
+        else:
+            super().mouseReleaseEvent(event)
 
 
 def applyModernStyle(app):
@@ -1576,7 +1592,7 @@ if __name__ == "__main__":
 
     # --- AÑADE ESTA LÍNEA AQUÍ ---
     # fedApp.setWindowFlags(QtCore.Qt.Window | QtCore.Qt.WindowTitleHint | QtCore.Qt.CustomizeWindowHint)
-    fedApp.setWindowFlags(QtCore.Qt.FramelessWindowHint)
+    # fedApp.setWindowFlags(QtCore.Qt.FramelessWindowHint)
     # -----------------------------
 
     # ASIGNAR ICONO A LA VENTANA (Usando tu recurso compilado)
