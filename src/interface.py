@@ -794,8 +794,8 @@ class Ui_fedApp(object):
 
     def toggle_action_items(self, idx):
         mapa_acciones = {
-            "1": ["Procesar", "Formato", "Referencia Bancos", "Encabezado"],
-            "2": ["Procesar", "Subrayado Auxiliar", "Referencia Bancos", "Encabezado"],
+            "1": ["Procesar", "Formato", "Encabezado"],
+            "2": ["Procesar", "Subrayado Auxiliar", "Encabezado"],
             "3": ["Procesar", "Subrayado Auxiliar", "Referencia Bancos", "Encabezado"],
         }
 
@@ -1017,6 +1017,9 @@ class Ui_fedApp(object):
         self.bloquear_pantalla()
 
         try:
+            #############################################################################
+            # Procesos genericos tanto para IVA
+            #############################################################################
             if vle_process.casefold() == "iva".casefold():
                 if vle_action.casefold() == "Procesar".casefold():
                     self.message_box("IVA", "Se inicio proceso de IVA...")
@@ -1028,19 +1031,30 @@ class Ui_fedApp(object):
                     file_name = f"{path}/cedula_iva_acreditable_100.xlsx"
                     main_iva_format_process(path, file_name)
 
+            #############################################################################
+            # Procesos genericos tanto para V0
+            #############################################################################
             if vle_process.casefold() == "v0".casefold():
                 if vle_action.casefold() == "Procesar".casefold():
                     self.text_console_log("Iniciando proceso V0...", "PROCESS")
-                    main_v0_process(path)
+                    main_v0_process(self, path)
 
-                if vle_action.casefold() == "Subrayado Auxiliar".casefold():
-                    self.text_console_log("Iniciando proceso V0...", "PROCESS")
-                    main_underline_aux_process(path)
-
+            #############################################################################
+            # Procesos genericos tanto para V16
+            #############################################################################
             if vle_process.casefold() == "v16".casefold():
                 if vle_action.casefold() == "Procesar".casefold():
                     self.text_console_log("Iniciando proceso V16...", "PROCESS")
                     main_v16_process(path)
+
+            #############################################################################
+            # Procesos genericos tanto para IVA como V0 y V16
+            #############################################################################
+            if vle_action.casefold() == "Subrayado Auxiliar".casefold():
+                self.text_console_log(
+                    "Iniciando proceso Subrayado Auxiliar...", "PROCESS"
+                )
+                main_underline_aux_process(self, path, vle_process.casefold())
 
             if vle_action.casefold() == "Referencia Bancos".casefold():
                 self.text_console_log(

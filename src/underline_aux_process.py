@@ -1,5 +1,6 @@
 import re
 from os.path import join
+from pathlib import Path
 
 import fitz  # PyMuPDF
 import pandas as pd
@@ -136,11 +137,16 @@ def proceso_estadistico(referencias_originales, found_references):
         print(f"Muestra de no encontradas: {no_encontradas_lista[:50]}")
 
 
-def main_underline_aux_process(path):
+def main_underline_aux_process(self, path, suff):
+    path = Path(path).resolve()
     # === 1. Procesar el Excel ===
-    archivo_excel = f"{path}/v0_referencias.xlsx"
+    archivo_excel = path / f"{suff}_referencias.xlsx"
 
-    print(archivo_excel)
+    if not archivo_excel.exists():
+        msg = f"No se encontró el archivo necesario: {archivo_excel}"
+        self.text_console_log(msg, "ERROR")
+        # Este RAISE detiene la función AQUÍ MISMO y va directo al except de la GUI
+        raise FileNotFoundError(msg)
 
     # Paso 1, obtener la información del auxiliar procesando el xlsx
     referencias_originales, referencias_limpias, dict_mapeo = procesar_xlsx(
@@ -149,8 +155,14 @@ def main_underline_aux_process(path):
 
     # === 2. Buscar en PDF agrupando por filas virtuales ===
     pdf_name = "aux"
-    pdf_path = join(path, f"{pdf_name}.pdf")
-    pdf_salida = join(path, f"{pdf_name}_con_subrayados.pdf")
+    pdf_path = path / f"{pdf_name}.pdf"
+    pdf_salida = path / f"{pdf_name}_con_subrayados.pdf"
+
+    if not pdf_path.exists():
+        msg = f"No se encontró el archivo necesario: {pdf_path}"
+        self.text_console_log(msg, "ERROR")
+        # Este RAISE detiene la función AQUÍ MISMO y va directo al except de la GUI
+        raise FileNotFoundError(msg)
 
     # Paso 2,
     found_references = process_pdf(

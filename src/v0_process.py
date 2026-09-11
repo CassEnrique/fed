@@ -2,6 +2,7 @@ import argparse
 import re
 from datetime import datetime
 from difflib import SequenceMatcher
+from pathlib import Path
 
 import openpyxl
 import pandas as pd
@@ -1263,26 +1264,52 @@ def actualizar_archivo_b(ruta_a, ruta_b):
         print("Cero filas eliminadas.")
 
 
-def main_v0_process(path):
+def main_v0_process(self, path):
+    path = Path(path).resolve()  # convierte a Path y resuelve rutas absolutas
     # ANIO, MES = argumentos_consola()
     # dir = f"v0/{ANIO}/{MES}"
     # assets = "v0/assets"
     # public = "public"
 
-    archivo_mxn = f"{path}/mxn.xlsx"
-    archivo_usd = f"{path}/usd.xlsx"
-    archivo_salida = f"{path}/v0.xlsx"
+    archivo_mxn = path / "mxn.xlsx"
+    archivo_usd = path / "usd.xlsx"
+    archivo_salida = path / "v0.xlsx"
 
-    archivo_ventas = f"{path}/ventas.xlsx"
-    archivo_cambio = "cambio_obligaciones.csv"
-    archivo_hsbc = f"{path}/hsbc.xlsx"
+    archivo_ventas = path / "ventas.xlsx"
+    archivo_cambio = path / "cambio_obligaciones.csv"
+    archivo_hsbc = path / "hsbc.xlsx"
 
-    billing_order = f"{path}/billing_order.xlsx"
-    bosch = f"{path}/bosch.xlsx"
-    zfnvh = f"{path}/zfnvh.xlsx"
-    expo = f"{path}/EXPO.xlsx"
+    billing_order = path / "billing_order.xlsx"
+    bosch = path / "bosch.xlsx"
+    zfnvh = path / "zfnvh.xlsx"
+    expo = path / "EXPO.xlsx"
 
-    file_v16 = f"{path}/v16.xlsx"
+    file_v16 = path / "v16.xlsx"
+
+    # Validación con list comprehension
+    archivos_faltantes = [
+        file
+        for file in [
+            archivo_mxn,
+            archivo_usd,
+            archivo_ventas,
+            archivo_cambio,
+            archivo_hsbc,
+            billing_order,
+            bosch,
+            zfnvh,
+            expo,
+            file_v16,
+        ]
+        if not file.exists()
+    ]
+
+    if archivos_faltantes:
+        msg = f"Los siguientes archivos de banco no existen:\n" + "\n".join(
+            map(str, archivos_faltantes)
+        )
+        self.text_console_log(msg, "ERROR")
+        raise FileNotFoundError(msg)
 
     # Paso 1: Crear archivo_formateado.xlsx desde agosto_mxn.xlsx
     formatear_excel_sin_diarios(archivo_mxn, archivo_salida)
