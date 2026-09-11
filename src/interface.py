@@ -1025,14 +1025,6 @@ class Ui_fedApp(object):
                     file_name = f"{path}/cedula_iva_acreditable_100.xlsx"
                     main_iva_format_process(path, file_name)
 
-                if vle_action.casefold() == "Referencia Bancos".casefold():
-                    self.text_console_log(
-                        "Procesando referencia en estados de cuenta...", "PROCESS"
-                    )
-                    file_name = "cedula_iva_acreditable_100"
-                    main_underline_bank_process(vle_process.casefold(), path, file_name)
-                    print("Proceso de referencia")
-
             if vle_process.casefold() == "v0".casefold():
                 if vle_action.casefold() == "Procesar".casefold():
                     self.text_console_log("Iniciando proceso V0...", "PROCESS")
@@ -1046,6 +1038,20 @@ class Ui_fedApp(object):
                 if vle_action.casefold() == "Procesar".casefold():
                     self.text_console_log("Iniciando proceso V16...", "PROCESS")
                     main_v16_process(path)
+
+            if vle_action.casefold() == "Referencia Bancos".casefold():
+                self.text_console_log(
+                    "Procesando referencia en estados de cuenta...", "PROCESS"
+                )
+                file_name = (
+                    "cedula_iva_acreditable_100"
+                    if vle_process.casefold() == "iva".casefold()
+                    else vle_action.casefold()
+                )
+                main_underline_bank_process(
+                    self, vle_process.casefold(), path, file_name
+                )
+                print("Proceso de referencia")
 
             if vle_action.casefold() == "Encabezado".casefold():
                 self.text_console_log(

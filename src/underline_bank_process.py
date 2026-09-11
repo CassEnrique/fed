@@ -1,5 +1,6 @@
 import re
 from datetime import datetime
+from pathlib import Path
 
 import cv2
 import fitz  # PyMuPDF
@@ -198,7 +199,7 @@ def resaltar_por_fecha_y_monto(pdf_entrada, pdf_salida, items_a_buscar):
     doc.close()
 
 
-def procesar_por_suff(suff, path, file_name, config):
+def procesar_por_suff(self, suff, path, file_name, config):
     path = Path(path).resolve()  # convierte a Path y resuelve rutas absolutas
 
     suff_key = suff.lower()
@@ -209,13 +210,27 @@ def procesar_por_suff(suff, path, file_name, config):
     banks = datos.get("banks", [])
     name_sheet = datos.get("sheet_name", "")
 
-    archivo_base = path / "{file_name}.xlsx"
+    archivo_base = path / f"{file_name}.xlsx"
 
-    if not archivo_base.exists() or not egresos_path.exists():
-        faltante = "diot.xlsx" if not diot_path.exists() else "egresos.xlsx"
-        msg = f"No se encontró el archivo necesario: {faltante}"
+    if not archivo_base.exists():
+        faltante = "diot.xlsx" if not archivo_base.exists() else "egresos.xlsx"
+        msg = f"No se encontró el archivo necesario: {archivo_base}"
         self.text_console_log(msg, "ERROR")
         # Este RAISE detiene la función AQUÍ MISMO y va directo al except de la GUI
+        raise FileNotFoundError(msg)
+
+    # Validación con list comprehension
+    archivos_faltantes = [
+        path / f"{bank['file']}.pdf"
+        for bank in banks
+        if not (path / f"{bank['file']}.pdf").exists()
+    ]
+
+    if archivos_faltantes:
+        msg = f"Los siguientes archivos de banco no existen:\n" + "\n".join(
+            map(str, archivos_faltantes)
+        )
+        self.text_console_log(msg, "ERROR")
         raise FileNotFoundError(msg)
 
     for bank in banks:
@@ -267,5 +282,5 @@ configuracion = {
 }
 
 
-def main_underline_bank_process(suff, path, file_name):
-    procesar_por_suff(suff, path, file_name, configuracion)
+def main_underline_bank_process(self, suff, path, file_name):
+    procesar_por_suff(self, suff, path, file_name, configuracion)
