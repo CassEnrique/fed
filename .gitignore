@@ -26,3 +26,9 @@ Thumbs.db
 *.exe
 *.spec
 !interface.spec
+
+
+# Dev
+uis/
+main.py
+build_nuitka_local.py

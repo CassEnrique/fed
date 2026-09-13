@@ -6,6 +6,34 @@ import time
 from datetime import datetime
 from html import escape
 
+
+# ⭐ NUEVA FUNCIÓN - Detectar si estamos en .exe o en desarrollo
+def get_base_path():
+    """
+    Devuelve la ruta base correcta según el entorno:
+    - En desarrollo: carpeta del proyecto
+    - En .exe compilado: carpeta temporal de Nuitka (_MEIPASS)
+    """
+    if getattr(sys, "frozen", False):
+        # Estamos en un .exe compilado (PyInstaller o Nuitka)
+        return sys._MEIPASS
+    else:
+        # Estamos en desarrollo
+        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def resource_path(relative_path):
+    """
+    Obtiene la ruta completa de un archivo de recurso.
+
+    Uso:
+        icon_path = resource_path("icons/favicon.ico")
+        logo_path = resource_path("icons/logo.png")
+    """
+    base_path = get_base_path()
+    return os.path.join(base_path, relative_path)
+
+
 import resources_rc
 from flujograma_process import main_flujograma_process
 from header_process import main_header_process
@@ -1086,7 +1114,8 @@ class Ui_fedApp(object):
                     if vle_process.casefold() == "iva".casefold()
                     else f"{path}/{vle_process}.xlsx"
                 )
-                main_header_process(file_path, vle_process, "icons/logo.png")
+                logo_path = resource_path("icons/logo.png")
+                main_header_process(file_path, vle_process, logo_path)
                 print("Proceso de referencia")
 
         except Exception as e:
