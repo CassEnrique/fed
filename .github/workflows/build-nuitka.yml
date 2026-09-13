@@ -10,64 +10,41 @@ on:
     branches:
       - main
       - master
-    paths:
-      - "src/**"
-      - "icons/**"
-      - "requirements.txt"
-      - ".github/workflows/build-nuitka.yml"
-  pull_request:
-    branches:
-      - main
 
 jobs:
   build-windows:
     runs-on: windows-latest
-    timeout-minutes: 180
+    timeout-minutes: 240
 
     steps:
-      # 1️⃣ Checkout
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      # 2️⃣ Setup Python 3.10
-      - name: 🐍 Set up Python 3.10
+      - name: Set up Python 3.10
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
           cache: "pip"
 
-      # 3️⃣ Verificar Python
-      - name: ✅ Verify Python installation
-        run: |
-          python --version
-          python -c "import sys; print(f'Platform: {sys.platform}')"
-
-      # 4️⃣ Setup C++ compiler
-      - name: 🛠️ Setup C++ compiler
+      - name: Setup C++ compiler
         uses: ilammy/msvc-dev-cmd@v1
 
-      # 5️⃣ Upgrade pip
-      - name: 📦 Upgrade pip
+      - name: Upgrade pip
         run: |
           python -m pip install --upgrade pip setuptools wheel
 
-      # 6️⃣ Instalar dependencias
-      - name: 📚 Install dependencies
+      - name: Install dependencies
         run: |
           pip install -r requirements.txt
           pip install nuitka zstandard
 
-      # 7️⃣ Compilar recursos Qt
-      - name: 🎨 Compile Qt resources
+      - name: Compile Qt resources
         run: |
           pyrcc5 icons/sources.qrc -o src/resources_rc.py
           if ($LASTEXITCODE -ne 0) { exit 1 }
           Write-Host "Resources compiled successfully"
 
-      # 8️⃣ Verificar imports críticos
-      - name: 🔍 Verify critical imports
+      - name: Verify critical imports
         run: |
           Write-Host "Testing imports..."
           python -c "import PyQt5; print('OK: PyQt5')"
@@ -77,17 +54,24 @@ jobs:
           python -c "import openpyxl; print('OK: OpenPyXL')"
           Write-Host "All critical imports OK"
 
-      # 9️⃣ Limpiar builds anteriores
-      - name: 🧹 Clean previous builds
+      - name: Clean previous builds
         run: |
           if (Test-Path build) { Remove-Item -Recurse -Force build }
           if (Test-Path dist) { Remove-Item -Recurse -Force dist }
           if (Test-Path nuitka_output) { Remove-Item -Recurse -Force nuitka_output }
+          if (Test-Path ".nuitka") { Remove-Item -Recurse -Force ".nuitka" }
 
-      # 🔟 Compilar con Nuitka
-      - name: 🔨 Build with Nuitka
+      - name: Build with Nuitka (VERBOSE)
         run: |
           Write-Host "Starting Nuitka compilation..."
+          Write-Host "Python version:" (python --version)
+          Write-Host "Nuitka version:" (nuitka --version)
+          Write-Host ""
+          Write-Host "Command:"
+          Write-Host "nuitka --onefile --windows-icon=icons/favicon.ico --output-dir=dist --remove-output --include-package=torch --include-package=torchvision --include-package=easyocr --include-package=cv2 --include-package=numpy --include-package=pandas --include-package=openpyxl --include-package=rapidfuzz --include-package=pymupdf --include-data-dir=icons=icons --follow-imports --no-prefer-source-code --jobs=2 src/interface.py"
+          Write-Host ""
+
+          # Ejecutar Nuitka con salida detallada
           nuitka `
             --onefile `
             --windows-icon=icons/favicon.ico `
@@ -105,45 +89,83 @@ jobs:
             --include-data-dir=icons=icons `
             --follow-imports `
             --no-prefer-source-code `
-            --jobs=4 `
+            --jobs=2 `
             src/interface.py
 
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-          Write-Host "Compilation successful"
+          Write-Host "Nuitka exit code: $LASTEXITCODE"
 
-      # 1️⃣1️⃣ Verificar que se creó el .exe
-      - name: ✓ Verify executable
-        run: |
-          if (!(Test-Path "dist/interface.exe")) {
-            Write-Error "interface.exe not found!"
-            Get-ChildItem -Recurse dist
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Nuitka compilation failed!"
             exit 1
           }
-          $fileSize = (Get-Item "dist/interface.exe").Length / 1MB
-          Write-Host "Executable created successfully"
-          Write-Host "File size: $([math]::Round($fileSize, 2)) MB"
-          Get-ChildItem dist/interface.exe
 
-      # 1️⃣2️⃣ Crear ZIP para distribución
-      - name: 📦 Create release package
+          Write-Host "Compilation completed"
+
+      - name: Debug - List dist folder
+        if: always()
         run: |
-          mkdir release_package
+          Write-Host "Contents of dist folder:"
+          if (Test-Path dist) {
+            Get-ChildItem -Recurse dist | ForEach-Object { Write-Host $_.FullName }
+          } else {
+            Write-Host "dist folder does not exist!"
+          }
+
+      - name: Debug - List current directory
+        if: always()
+        run: |
+          Write-Host "Current directory:"
+          Get-Location
+          Write-Host ""
+          Write-Host "Files in current directory:"
+          Get-ChildItem -Force
+
+      - name: Verify executable
+        run: |
+          Write-Host "Checking for interface.exe..."
+          $exePath = "dist/interface.exe"
+
+          if (Test-Path $exePath) {
+            $fileSize = (Get-Item $exePath).Length / 1MB
+            Write-Host "SUCCESS: interface.exe found!"
+            Write-Host "File size: $([math]::Round($fileSize, 2)) MB"
+            Get-Item $exePath | Format-Table FullName, Length
+          } else {
+            Write-Host "FAILED: interface.exe not found at $exePath"
+            Write-Host ""
+            Write-Host "Checking alternative paths..."
+
+            $altPaths = @(
+              "dist/interface/interface.exe",
+              "interface.exe",
+              "dist/interface.dist/interface.exe"
+            )
+
+            foreach ($path in $altPaths) {
+              if (Test-Path $path) {
+                Write-Host "Found at: $path"
+              }
+            }
+
+            exit 1
+          }
+
+      - name: Create release package
+        run: |
+          Write-Host "Creating ZIP package..."
+          mkdir -Force release_package
           Copy-Item dist/interface.exe release_package/
           Compress-Archive -Path release_package -DestinationPath FED-windows-nuitka.zip
-
           $zipSize = (Get-Item FED-windows-nuitka.zip).Length / 1MB
-          Write-Host "ZIP created: FED-windows-nuitka.zip"
-          Write-Host "ZIP size: $([math]::Round($zipSize, 2)) MB"
+          Write-Host "ZIP created: $([math]::Round($zipSize, 2)) MB"
 
-      # 1️⃣3️⃣ Upload artifact
-      - name: Upload artifact
+      - name: Upload executable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FED-windows-nuitka
+          name: interface.exe
           path: dist/interface.exe
           retention-days: 30
 
-      # 1️⃣4️⃣ Upload ZIP artifact
       - name: Upload ZIP artifact
         uses: actions/upload-artifact@v4
         with:
@@ -151,7 +173,6 @@ jobs:
           path: FED-windows-nuitka.zip
           retention-days: 30
 
-      # 1️⃣5️⃣ Crear Release automática (si es tag)
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
@@ -159,23 +180,5 @@ jobs:
           files: |
             dist/interface.exe
             FED-windows-nuitka.zip
-          draft: false
-          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # 1️⃣6️⃣ Success notification
-      - name: Success notification
-        if: success()
-        run: |
-          Write-Host "Build completed successfully!"
-          Write-Host "Artifact: FED-windows-nuitka"
-          Write-Host "Download from Actions tab"
-
-      # 1️⃣7️⃣ Error notification
-      - name: Error notification
-        if: failure()
-        run: |
-          Write-Host "Build failed!"
-          Write-Host "Check logs above for details"
-          exit 1
