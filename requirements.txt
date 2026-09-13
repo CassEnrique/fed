@@ -22,6 +22,7 @@ pdf2image
 pillow==12.2.0
 
 
-# --- Herramientas especificas ---
-pyinstaller==5.13.2
-setuptools==69.5.1
+# --- Compilación ---
+# pyinstaller==5.13.2
+# setuptools==69.5.1
+nuitka>=1.8.4

@@ -95,6 +95,13 @@ class Ui_fedApp(object):
         self.main_window = fedApp
         fedApp.setObjectName("fedApp")
         fedApp.resize(1200, 700)
+
+        # 🔒 Tamaño fijo basado en el contenido
+        fedApp.setFixedSize(fedApp.size())  # o self.setFixedSize(800, 600)
+        fedApp.setWindowFlags(
+            fedApp.windowFlags() | QtCore.Qt.MSWindowsFixedSizeDialogHint
+        )
+
         fedApp.setWindowTitle("FED - Sistema de Devoluciones")
 
         # Variable para guardar la posición del mouse

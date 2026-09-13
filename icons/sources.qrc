@@ -9,10 +9,11 @@
     <file>exit_to_app.svg</file>
     <file>file_save.svg</file>
     <file>flow.svg</file>
+    <file>flujograma_process.png</file>
     <file>folder_open.svg</file>
     <file>folder_zip.svg</file>
     <file>logo.png</file>
-    <file>manufacturingsvg</file>
+    <file>manufacturing.svg</file>
     <file>minimize.svg</file>
     <file>xenova.png</file>
     <file>xlsx.png</file>
@@ -21,5 +22,6 @@
     <file>calc.png</file>
     <file>favicon.png</file>
     <file>favicon.ico</file>
+    <file>txt.png</file>
   </qresource>
 </RCC>

@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+*.egg
+
+# Compilación
+build/
+dist/
+*.egg
+nuitka_output/
+.nuitka_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Artifacts
+*.exe
+*.spec
+!interface.spec
