@@ -20,6 +20,7 @@ jobs:
   build-windows:
     runs-on: windows-latest
     timeout-minutes: 240
+    environment: fed
 
     steps:
       - name: Checkout repository
@@ -225,7 +226,8 @@ jobs:
           retention-days: 30
 
       - name: Upload artifacts to Cloudflare R2
-        if: success() && secrets.R2_ACCESS_KEY_ID != '' && secrets.R2_SECRET_ACCESS_KEY != '' && secrets.R2_BUCKET != '' && secrets.R2_ENDPOINT != ''
+        # if: success() && secrets.R2_ACCESS_KEY_ID != '' && secrets.R2_SECRET_ACCESS_KEY != '' && secrets.R2_BUCKET != '' && secrets.R2_ENDPOINT != ''
+        if: ${{ success() && secrets.R2_ACCESS_KEY_ID != '' }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
