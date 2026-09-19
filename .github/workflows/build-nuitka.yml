@@ -42,6 +42,7 @@ jobs:
       - name: 📦 Install dependencies (minimal build)
         run: |
           pip install -r requirements.txt
+          pip install nuitka PyQt5-tools
 
           # Instalar solo Nuitka (no se necesita más)
           pip install nuitka
