@@ -1,4 +1,4 @@
-name: Build Windows EXE with Nuitka (Optimized)
+name: Build Windows EXE with Nuitka (Fixed)
 
 env:
   PYTHONIOENCODING: utf-8
@@ -19,7 +19,7 @@ on:
 jobs:
   build-windows:
     runs-on: windows-latest
-    timeout-minutes: 180 # Reducido, será más rápido
+    timeout-minutes: 180
 
     steps:
       - name: 🔎 Checkout repository
@@ -35,45 +35,110 @@ jobs:
       - name: 💻 Setup MSVC C++ Compiler
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: 🚀 Upgrade pip & tools
+      - name: 🚀 Upgrade pip & core tools
         run: |
-          python -m pip install --upgrade pip setuptools wheel zstandard
+          python -m pip install --upgrade pip setuptools wheel
+          Write-Host "✅ pip, setuptools, wheel upgraded"
 
-      - name: 📦 Install dependencies (minimal build)
+      - name: 📦 Install dependencies from requirements.txt
         run: |
-          pip install -r requirements.txt
-          pip install nuitka PyQt5-tools
+          Write-Host "📥 Installing main dependencies from requirements.txt..."
+          pip install -r requirements.txt -v
 
-          # Instalar solo Nuitka (no se necesita más)
-          pip install nuitka
-
-      - name: 🛠️ Compile Qt resources
-        run: |
-          pyrcc5 icons/sources.qrc -o src/resources_rc.py
           if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to compile Qt resources"
+            Write-Host "❌ Failed to install requirements"
             exit 1
           }
-          Write-Host "✅ Resources compiled: src/resources_rc.py"
 
-      - name: ✅ Verify critical imports (before build)
+          Write-Host "✅ All dependencies installed"
+
+      - name: 🛠️ Install build tools
         run: |
-          python -c "import PyQt5; print('PyQt5: OK')"
-          python -c "import torch; print('Torch: OK, version', torch.__version__)"
-          python -c "import cv2; print('OpenCV: OK')"
-          python -c "import fitz; print('PyMuPDF: OK')"
-          python -c "import easyocr; print('EasyOCR: OK')"
-          python -c "import pandas, openpyxl; print('Pandas/OpenPyXL: OK')"
+          Write-Host "📥 Installing build tools (PyQt5-tools, Nuitka, zstandard)..."
+          pip install PyQt5-tools nuitka zstandard
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Failed to install build tools"
+            exit 1
+          }
+
+          Write-Host "✅ Build tools installed"
+          Write-Host ""
+          Write-Host "📍 pyrcc5 version:"
+          pyrcc5 --version
+          Write-Host ""
+          Write-Host "📍 nuitka version:"
+          nuitka --version
+
+      - name: 🎨 Compile Qt resources
+        run: |
+          Write-Host "🔨 Compiling Qt resources from icons/sources.qrc..."
+          pyrcc5 icons/sources.qrc -o src/resources_rc.py
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Failed to compile Qt resources"
+            exit 1
+          }
+
+          Write-Host "✅ Resources compiled successfully"
+          Get-Item src/resources_rc.py | Format-Table FullName, Length
+
+      - name: ✅ Verify critical imports
+        run: |
+          Write-Host "🔍 Verifying all critical imports..."
+          Write-Host ""
+
+          $modules = @(
+              @("PyQt5", "GUI Framework"),
+              @("torch", "PyTorch (CPU)"),
+              @("cv2", "OpenCV"),
+              @("fitz", "PyMuPDF"),
+              @("easyocr", "EasyOCR"),
+              @("pandas", "Pandas"),
+              @("openpyxl", "OpenPyXL"),
+              @("rapidfuzz", "RapidFuzz")
+          )
+
+          $failed = @()
+
+          foreach ($item in $modules) {
+              $module = $item[0]
+              $name = $item[1]
+
+              Write-Host -NoNewline "  Testing $name... "
+
+              $output = python -c "import $module; print('OK')" 2>&1
+
+              if ($LASTEXITCODE -eq 0) {
+                  Write-Host "✓" -ForegroundColor Green
+              } else {
+                  Write-Host "✗ FAILED" -ForegroundColor Red
+                  $failed += $module
+              }
+          }
+
+          Write-Host ""
+
+          if ($failed.Count -gt 0) {
+              Write-Host "❌ Failed to import: $($failed -join ', ')" -ForegroundColor Red
+              Write-Host ""
+              Write-Host "Debug info:"
+              python -m pip list | Select-String -Pattern "torch|cv2|pandas|openpyxl|PyQt5|easyocr|fitz"
+              exit 1
+          } else {
+              Write-Host "✅ All critical imports verified!" -ForegroundColor Green
+          }
 
       - name: 🧹 Clean previous builds
         run: |
+          Write-Host "🧹 Cleaning previous outputs..."
           Remove-Item -Force -Recurse "build", "dist", "nuitka_output", ".nuitka", "__pycache__" -ErrorAction SilentlyContinue
-          Write-Host "✅ Cleaned previous outputs"
+          Write-Host "✅ Previous builds cleaned"
 
-      - name: 🔧 Build with Nuitka (Optimized Settings)
+      - name: 🔧 Build with Nuitka
         run: |
-          Write-Host "🚀 Starting Nuitka compilation..."
-          Write-Host "Nuitka version: $(nuitka --version)"
+          Write-Host "🚀 Starting Nuitka compilation (this may take 10-15 minutes)..."
+          Write-Host ""
 
           nuitka `
             --onefile `
@@ -83,16 +148,12 @@ jobs:
             --jobs=2 `
             --lto=yes `
             --disable-ccache `
-
-            # ===== Solo lo necesario =====
             --include-module=fitz `
             --include-module=cv2 `
             --include-module=easyocr `
             --include-module=pandas `
             --include-module=openpyxl `
             --include-module=rapidfuzz `
-
-            # ===== PyTorch (CPU ONLY) =====
             --include-package=torch `
             --include-package=torchvision `
             --exclude-module=torch.cuda `
@@ -100,50 +161,55 @@ jobs:
             --exclude-module=tensorboard `
             --exclude-module=thinc `
             --exclude-module=*test* `
-            --exclude-module=tools `
             --prefer-source-code=no `
-
-            # ===== Datos y recursos =====
             --include-data-dir=icons=icons `
-            --include-data-file=src/resources_rc.py=resources_rc.py `
-
-            # ===== Comportamiento =====
             --follow-imports `
             --no-pyi-files `
             --windows-uac-admin `
-
-            # ===== Entrypoint =====
             src/interface.py
 
           if ($LASTEXITCODE -ne 0) {
-            Write-Error "Nuitka failed with exit code $LASTEXITCODE"
+            Write-Host ""
+            Write-Host "❌ Nuitka compilation failed!" -ForegroundColor Red
             exit 1
           }
 
-          Write-Host "✅ Compilation successful"
+          Write-Host ""
+          Write-Host "✅ Compilation completed successfully"
 
       - name: 📊 Verify executable
         run: |
+          Write-Host "📊 Verifying executable..."
           $exe = "dist/interface.exe"
+
           if (Test-Path $exe) {
             $size = (Get-Item $exe).Length / 1MB
-            Write-Host "📦 Executable created: $exe"
-            Write-Host "📊 Size: $([math]::Round($size, 2)) MB"
+            Write-Host "✅ Executable created successfully!"
+            Write-Host "📍 Path: $exe"
+            Write-Host "📦 Size: $([math]::Round($size, 2)) MB"
           } else {
-            Write-Error "❌ interface.exe not found in dist/"
-            Get-ChildItem -Recurse -Path dist -ErrorAction SilentlyContinue
+            Write-Host "❌ interface.exe not found!" -ForegroundColor Red
+            Write-Host ""
+            Write-Host "📁 Contents of dist folder:"
+            if (Test-Path dist) {
+              Get-ChildItem -Recurse dist
+            } else {
+              Write-Host "dist folder does not exist!"
+            }
             exit 1
           }
 
       - name: 📦 Create release package
         run: |
+          Write-Host "📦 Creating ZIP package..."
           mkdir -Force release
           Copy-Item dist/interface.exe release/FED-Application.exe
           Compress-Archive -Path release -DestinationPath FED-Windows.zip
+
           $zipSize = (Get-Item FED-Windows.zip).Length / 1MB
           Write-Host "✅ ZIP created: FED-Windows.zip ($([math]::Round($zipSize, 2)) MB)"
 
-      - name: 📤 Upload artifact
+      - name: 📤 Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: FED-Windows-EXE
@@ -151,14 +217,30 @@ jobs:
             dist/interface.exe
             FED-Windows.zip
           retention-days: 30
+          if-no-files-found: error
 
-      # ---- Solo en tags o releases ----
       - name: 🚀 Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
         with:
           name: "FED v${{ github.ref_name }}"
-          body: "Automated release of FED Application (Windows)"
+          body: |
+            **FED Application - Windows Release**
+
+            **Downloads:**
+            - `FED-Application.exe` - Standalone executable
+            - `FED-Windows.zip` - Portable package
+
+            **Requirements:**
+            - Windows 10 / Windows 11 (64-bit)
+            - No Python installation required
+            - ~600 MB disk space
+
+            **Features:**
+            - GUI for document automation
+            - Excel processing (DIOT, IVA, V0, V16)
+            - PDF text recognition and highlighting
+            - Fuzzy matching for references
           files: |
             dist/interface.exe
             FED-Windows.zip
