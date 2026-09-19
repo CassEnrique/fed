@@ -227,7 +227,7 @@ jobs:
 
       - name: Upload artifacts to Cloudflare R2
         # if: success() && secrets.R2_ACCESS_KEY_ID != '' && secrets.R2_SECRET_ACCESS_KEY != '' && secrets.R2_BUCKET != '' && secrets.R2_ENDPOINT != ''
-        if: ${{ success() && secrets.R2_ACCESS_KEY_ID != '' }}
+        if: success()
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -235,6 +235,12 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
         run: |
+          # Verificamos si los secretos existen antes de ejecutar los comandos de AWS
+          if (-not $env:R2_CHECK) {
+            Write-Host "Secretos de R2 no configurados o no disponibles en este contexto. Saltando subida..."
+            return
+          }
+
           Write-Host "Uploading artifacts to Cloudflare R2..."
 
           $exeKey = "FED/latest/interface.exe"
