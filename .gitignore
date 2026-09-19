@@ -24,11 +24,12 @@ Thumbs.db
 
 # Artifacts
 *.exe
-*.spec
-!interface.spec
+.spec
+interface.spec
 
 
 # Dev
 uis/
 main.py
 build_nuitka_local.py
+compile_windows.bat

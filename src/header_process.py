@@ -1,5 +1,7 @@
 import datetime
 import os
+import shutil
+import tempfile
 
 import openpyxl
 from openpyxl.drawing.image import Image
@@ -9,7 +11,7 @@ from openpyxl.utils import get_column_letter
 
 def actualizar_excel_con_imagen(ruta_archivo, suffix, ruta_imagen):
     try:
-        # --- PASO 1: OBTENER VALOR DE LA FECHA (MODO LECTURA) ---
+        # --- PASO 1: OBTENER VALOR DE LA FECHA (MODO LECTURA) ---wb = openpyxl.load_workbook(ruta_archivo, keep_vba=True, data_only=False)
         wb_lectura = openpyxl.load_workbook(ruta_archivo, data_only=True)
         sheet_lectura = wb_lectura.active
 
@@ -113,10 +115,17 @@ def actualizar_excel_con_imagen(ruta_archivo, suffix, ruta_imagen):
         sheet[f"{letra_col_texto}3"].font = Font(bold=False, size=11)
 
         # --- PASO 4: GUARDAR ---
-        wb.save(ruta_archivo)
+        # wb.save(ruta_archivo)
+        temp_path = ruta_archivo + ".tmp"
+        wb.save(temp_path)
+        wb.close()
+
+        shutil.move(temp_path, ruta_archivo)
         print(f"Éxito: Se actualizó {nombre_archivo_mayus} correctamente.")
+        print(f"✅ {os.path.basename(ruta_archivo)} actualizado correctamente.")
 
     except Exception as e:
+        print(f"❌ Error al procesar {os.path.basename(ruta_archivo)}: {e}")
         print(f"Error crítico: {e}")
         import traceback
 

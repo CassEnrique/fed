@@ -1,4 +1,4 @@
-name: Build Windows EXE with Nuitka
+name: Build Windows EXE with Nuitka (Optimized)
 
 env:
   PYTHONIOENCODING: utf-8
@@ -10,175 +10,158 @@ on:
     branches:
       - main
       - master
+  pull_request:
+    branches:
+      - main
+  release:
+    types: [published]
 
 jobs:
   build-windows:
     runs-on: windows-latest
-    timeout-minutes: 240
+    timeout-minutes: 180 # Reducido, será más rápido
 
     steps:
-      - name: Checkout repository
+      - name: 🔎 Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
+      - name: 🐍 Setup Python 3.10
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
           cache: "pip"
+          cache-dependency-path: requirements.txt
 
-      - name: Setup C++ compiler
+      - name: 💻 Setup MSVC C++ Compiler
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Upgrade pip
+      - name: 🚀 Upgrade pip & tools
         run: |
-          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install --upgrade pip setuptools wheel zstandard
 
-      - name: Install dependencies
+      - name: 📦 Install dependencies (minimal build)
         run: |
           pip install -r requirements.txt
-          pip install nuitka zstandard
 
-      - name: Compile Qt resources
+          # Instalar solo Nuitka (no se necesita más)
+          pip install nuitka
+
+      - name: 🛠️ Compile Qt resources
         run: |
           pyrcc5 icons/sources.qrc -o src/resources_rc.py
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-          Write-Host "Resources compiled successfully"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to compile Qt resources"
+            exit 1
+          }
+          Write-Host "✅ Resources compiled: src/resources_rc.py"
 
-      - name: Verify critical imports
+      - name: ✅ Verify critical imports (before build)
         run: |
-          Write-Host "Testing imports..."
-          python -c "import PyQt5; print('OK: PyQt5')"
-          python -c "import torch; print('OK: Torch')"
-          python -c "import cv2; print('OK: OpenCV')"
-          python -c "import easyocr; print('OK: EasyOCR')"
-          python -c "import openpyxl; print('OK: OpenPyXL')"
-          Write-Host "All critical imports OK"
+          python -c "import PyQt5; print('PyQt5: OK')"
+          python -c "import torch; print('Torch: OK, version', torch.__version__)"
+          python -c "import cv2; print('OpenCV: OK')"
+          python -c "import fitz; print('PyMuPDF: OK')"
+          python -c "import easyocr; print('EasyOCR: OK')"
+          python -c "import pandas, openpyxl; print('Pandas/OpenPyXL: OK')"
 
-      - name: Clean previous builds
+      - name: 🧹 Clean previous builds
         run: |
-          if (Test-Path build) { Remove-Item -Recurse -Force build }
-          if (Test-Path dist) { Remove-Item -Recurse -Force dist }
-          if (Test-Path nuitka_output) { Remove-Item -Recurse -Force nuitka_output }
-          if (Test-Path ".nuitka") { Remove-Item -Recurse -Force ".nuitka" }
+          Remove-Item -Force -Recurse "build", "dist", "nuitka_output", ".nuitka", "__pycache__" -ErrorAction SilentlyContinue
+          Write-Host "✅ Cleaned previous outputs"
 
-      - name: Build with Nuitka (VERBOSE)
+      - name: 🔧 Build with Nuitka (Optimized Settings)
         run: |
-          Write-Host "Starting Nuitka compilation..."
-          Write-Host "Python version:" (python --version)
-          Write-Host "Nuitka version:" (nuitka --version)
-          Write-Host ""
-          Write-Host "Command:"
-          Write-Host "nuitka --onefile --windows-icon=icons/favicon.ico --output-dir=dist --remove-output --include-package=torch --include-package=torchvision --include-package=easyocr --include-package=cv2 --include-package=numpy --include-package=pandas --include-package=openpyxl --include-package=rapidfuzz --include-package=pymupdf --include-data-dir=icons=icons --follow-imports --no-prefer-source-code --jobs=2 src/interface.py"
-          Write-Host ""
+          Write-Host "🚀 Starting Nuitka compilation..."
+          Write-Host "Nuitka version: $(nuitka --version)"
 
-          # Ejecutar Nuitka con salida detallada
           nuitka `
             --onefile `
             --windows-icon=icons/favicon.ico `
             --output-dir=dist `
             --remove-output `
+            --jobs=2 `
+            --lto=yes `
+            --disable-ccache `
+
+            # ===== Solo lo necesario =====
+            --include-module=fitz `
+            --include-module=cv2 `
+            --include-module=easyocr `
+            --include-module=pandas `
+            --include-module=openpyxl `
+            --include-module=rapidfuzz `
+
+            # ===== PyTorch (CPU ONLY) =====
             --include-package=torch `
             --include-package=torchvision `
-            --include-package=easyocr `
-            --include-package=cv2 `
-            --include-package=numpy `
-            --include-package=pandas `
-            --include-package=openpyxl `
-            --include-package=rapidfuzz `
-            --include-package=pymupdf `
+            --exclude-module=torch.cuda `
+            --exclude-module=nvidia.* `
+            --exclude-module=tensorboard `
+            --exclude-module=thinc `
+            --exclude-module=*test* `
+            --exclude-module=tools `
+            --prefer-source-code=no `
+
+            # ===== Datos y recursos =====
             --include-data-dir=icons=icons `
+            --include-data-file=src/resources_rc.py=resources_rc.py `
+
+            # ===== Comportamiento =====
             --follow-imports `
-            --no-prefer-source-code `
-            --jobs=2 `
+            --no-pyi-files `
+            --windows-uac-admin `
+
+            # ===== Entrypoint =====
             src/interface.py
 
-          Write-Host "Nuitka exit code: $LASTEXITCODE"
-
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "Nuitka compilation failed!"
+            Write-Error "Nuitka failed with exit code $LASTEXITCODE"
             exit 1
           }
 
-          Write-Host "Compilation completed"
+          Write-Host "✅ Compilation successful"
 
-      - name: Debug - List dist folder
-        if: always()
+      - name: 📊 Verify executable
         run: |
-          Write-Host "Contents of dist folder:"
-          if (Test-Path dist) {
-            Get-ChildItem -Recurse dist | ForEach-Object { Write-Host $_.FullName }
+          $exe = "dist/interface.exe"
+          if (Test-Path $exe) {
+            $size = (Get-Item $exe).Length / 1MB
+            Write-Host "📦 Executable created: $exe"
+            Write-Host "📊 Size: $([math]::Round($size, 2)) MB"
           } else {
-            Write-Host "dist folder does not exist!"
-          }
-
-      - name: Debug - List current directory
-        if: always()
-        run: |
-          Write-Host "Current directory:"
-          Get-Location
-          Write-Host ""
-          Write-Host "Files in current directory:"
-          Get-ChildItem -Force
-
-      - name: Verify executable
-        run: |
-          Write-Host "Checking for interface.exe..."
-          $exePath = "dist/interface.exe"
-
-          if (Test-Path $exePath) {
-            $fileSize = (Get-Item $exePath).Length / 1MB
-            Write-Host "SUCCESS: interface.exe found!"
-            Write-Host "File size: $([math]::Round($fileSize, 2)) MB"
-            Get-Item $exePath | Format-Table FullName, Length
-          } else {
-            Write-Host "FAILED: interface.exe not found at $exePath"
-            Write-Host ""
-            Write-Host "Checking alternative paths..."
-
-            $altPaths = @(
-              "dist/interface/interface.exe",
-              "interface.exe",
-              "dist/interface.dist/interface.exe"
-            )
-
-            foreach ($path in $altPaths) {
-              if (Test-Path $path) {
-                Write-Host "Found at: $path"
-              }
-            }
-
+            Write-Error "❌ interface.exe not found in dist/"
+            Get-ChildItem -Recurse -Path dist -ErrorAction SilentlyContinue
             exit 1
           }
 
-      - name: Create release package
+      - name: 📦 Create release package
         run: |
-          Write-Host "Creating ZIP package..."
-          mkdir -Force release_package
-          Copy-Item dist/interface.exe release_package/
-          Compress-Archive -Path release_package -DestinationPath FED-windows-nuitka.zip
-          $zipSize = (Get-Item FED-windows-nuitka.zip).Length / 1MB
-          Write-Host "ZIP created: $([math]::Round($zipSize, 2)) MB"
+          mkdir -Force release
+          Copy-Item dist/interface.exe release/FED-Application.exe
+          Compress-Archive -Path release -DestinationPath FED-Windows.zip
+          $zipSize = (Get-Item FED-Windows.zip).Length / 1MB
+          Write-Host "✅ ZIP created: FED-Windows.zip ($([math]::Round($zipSize, 2)) MB)"
 
-      - name: Upload executable artifact
+      - name: 📤 Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: interface.exe
-          path: dist/interface.exe
+          name: FED-Windows-EXE
+          path: |
+            dist/interface.exe
+            FED-Windows.zip
           retention-days: 30
 
-      - name: Upload ZIP artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: FED-windows-nuitka-zip
-          path: FED-windows-nuitka.zip
-          retention-days: 30
-
-      - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/')
+      # ---- Solo en tags o releases ----
+      - name: 🚀 Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
         with:
+          name: "FED v${{ github.ref_name }}"
+          body: "Automated release of FED Application (Windows)"
           files: |
             dist/interface.exe
-            FED-windows-nuitka.zip
+            FED-Windows.zip
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

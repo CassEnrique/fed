@@ -22,6 +22,7 @@
     <file>calc.png</file>
     <file>favicon.png</file>
     <file>favicon.ico</file>
+    <file>logo.png</file>
     <file>txt.png</file>
   </qresource>
 </RCC>

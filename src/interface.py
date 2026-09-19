@@ -829,8 +829,8 @@ class Ui_fedApp(object):
 
     def toggle_action_items(self, idx):
         mapa_acciones = {
-            "1": ["Procesar", "Formato", "Encabezado"],
-            "2": ["Procesar", "Subrayado Auxiliar", "Encabezado"],
+            "1": ["Procesar", "Formato", "Referencia Bancos", "Encabezado"],
+            "2": ["Procesar", "Subrayado Auxiliar", "Referencia Bancos", "Encabezado"],
             "3": ["Procesar", "Subrayado Auxiliar", "Referencia Bancos", "Encabezado"],
         }
 
@@ -1098,7 +1098,7 @@ class Ui_fedApp(object):
                 file_name = (
                     "cedula_iva_acreditable_100"
                     if vle_process.casefold() == "iva".casefold()
-                    else vle_action.casefold()
+                    else vle_process.casefold()
                 )
                 main_underline_bank_process(
                     self, vle_process.casefold(), path, file_name
@@ -1130,8 +1130,16 @@ class Ui_fedApp(object):
             self.desbloquear_pantalla()
 
     def execute_work_process(self):
+        idx_tab_process = self.tabWidgetProcess.currentIndex()
+
+        logic_process = (
+            not self.first_directory
+            if idx_tab_process == 1
+            else not self.first_directory or not self.second_directory
+        )
+
         # Si la variable está vacía o es None, detonamos el mensaje
-        if not self.first_directory or not self.second_directory:
+        if logic_process:
             archivo_faltante = (
                 "Primer Archivo" if not self.first_directory else "Segundo Archivo"
             )
@@ -1141,8 +1149,6 @@ class Ui_fedApp(object):
                 "wrg",
             )
             return  # Salimos de la función para no procesar nada
-
-        idx_tab_process = self.tabWidgetProcess.currentIndex()
 
         # Si pasa la validación, llamamos a la lógica real
         self.logic_work_process(self.first_directory, idx_tab_process)
