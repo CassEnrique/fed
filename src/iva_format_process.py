@@ -667,7 +667,7 @@ def asignar_consecutivos_polizas(archivo_xlsx, nombre_hoja=None):
             idx = end_idx + 1
 
     wb.save(ruta)
-    # return asignaciones
+    return asignaciones
 
 
 def aplicar_borde_inferior_folios(archivo_xlsx, nombre_hoja=None):
@@ -765,29 +765,140 @@ def aplicar_borde_inferior_folios(archivo_xlsx, nombre_hoja=None):
     wb.save(archivo_xlsx)
 
 
-def main_iva_format_process(path, file_name):
-    archivo_cambio = f"{path}/cambio_obligaciones.csv"
+def main_iva_format_process(self, path, file_name):
+    path = Path(path).resolve()
 
+    archivo_cambio = path / "cambio_obligaciones.csv"
+    file_path = path / file_name
+
+    # ============================================================
+    # VALIDACIÓN PREVIA (Aquí detona y sale antes de intentar nada)
+    # Si no existen los insumos, lanzamos el error de inmediato
+    # ============================================================
+    if not archivo_cambio.exists() or not file_path.exists():
+        faltante = archivo_cambio if not archivo_cambio.exists() else file_path
+        msg = f"No se encontró el archivo necesario: {faltante}"
+        self.text_console_log(msg, "ERROR")
+        # Este RAISE detiene la función AQUÍ MISMO y va directo al except de la GUI
+        raise FileNotFoundError(msg)
+
+    # ============================================================
     # Paso 1, limpiar la columna Total USD
-    total = limpiar_total_usd(file_name)
-    print(f"Se limpiaron {total} celdas en Total USD.")
+    # ============================================================
+    try:
+        total = limpiar_total_usd(file_name)
+        print(f"Se limpiaron {total} celdas en Total USD.")
+        self.text_console_log(f"Se limpiaron {total} celdas en Total USD.")
+    except Exception as e:
+        print(f"❌ Error en limpiar_total_usd: {e}")
+        self.text_console_log(f"❌ Error en limpiar columna Total_USD: {e}", "ERROR")
+        raise FileNotFoundError(
+            "¡Es imposible seguir sin el archivo cedula_iva_acreditable_100.xlsx!"
+        )
+        # return  # o raise, según prefieras
 
+    # ============================================================
     # Paso 2,
-    actualizar_tipo_cambio(archivo_cambio, file_name)
+    # ============================================================
+    try:
+        actualizar_tipo_cambio(archivo_cambio, file_name)
+        print(f"Se limpiaron {total} celdas en Total USD.")
+        self.text_console_log(f"Se limpiaron {total} celdas en Total USD.")
+    except Exception as e:
+        print(f"❌ Error en limpiar_total_usd: {e}")
+        self.text_console_log(f"❌ Error en limpiar columna Total_USD: {e}", "ERROR")
+        raise FileNotFoundError(
+            "¡Es imposible seguir sin el archivo cedula_iva_acreditable_100.xlsx!"
+        )
+        # return  # o raise, según prefieras
 
+    # ============================================================
     # Paso 3, separar por RFC
-    insert_blank_styled_rows_per_rfc_group(
-        file_path=file_name, sheet_name=None, header_row=1, rfc_col=5, rows_to_insert=3
-    )
+    # ============================================================
+    try:
+        insert_blank_styled_rows_per_rfc_group(
+            file_path=file_name,
+            sheet_name=None,
+            header_row=1,
+            rfc_col=5,
+            rows_to_insert=3,
+        )
+        print(f"Se han separado por espacios en grupos de RFC.")
+        self.text_console_log(f"Se han separado por espacios en grupos de RFC.")
+    except Exception as e:
+        print(f"❌ Error al procesar insert_blank_styled_rows_per_rfc_group: {e}")
+        self.text_console_log(
+            f"❌ Error al procesar insert_blank_styled_rows_per_rfc_group: {e}"
+        )
+        raise FileNotFoundError(
+            "¡Es imposible seguir sin el archivo cedula_iva_acreditable_100.xlsx!"
+        )
+        # return  # o raise, según prefieras
 
+    # ============================================================
     # Paso 4,
-    insertar_totales_por_rfc(file_name)
+    # ============================================================
+    try:
+        insertar_totales_por_rfc(file_name)
+        print(f"Sumatoria por grupo de RFC en columnas fiscales.")
+        self.text_console_log(f"Sumatoria por grupo de RFC en columnas fiscales.")
+    except Exception as e:
+        print(f"❌ Error en insertar_totales_por_rfc: {e}")
+        self.text_console_log(f"❌ Error en sumatoria por grupos de RFC: {e}", "ERROR")
+        raise FileNotFoundError(
+            "¡Es imposible seguir sin el archivo cedula_iva_acreditable_100.xlsx!"
+        )
+        # return  # o raise, según prefieras
 
+    # ============================================================
     # Paso 5,
-    sumar_por_grupos_multimoneda(file_name)
+    # ============================================================
+    try:
+        sumar_por_grupos_multimoneda(file_name)
+        print(f"Totalizar referencia para bancos multimoneda, MXN / USD.")
+        self.text_console_log(
+            f"Totalizar referencia para bancos multimoneda, MXN / USD."
+        )
+    except Exception as e:
+        print(f"❌ Error en sumar_por_grupos_multimoneda: {e}")
+        self.text_console_log(
+            f"❌ Error en totalizar referencia para bancos: {e}", "ERROR"
+        )
+        raise FileNotFoundError(
+            "¡Es imposible seguir sin el archivo cedula_iva_acreditable_100.xlsx!"
+        )
+        # return  # o raise, según prefieras
 
+    # ============================================================
     # Paso 6,
-    _ = asignar_consecutivos_polizas(file_name)
+    # ============================================================
+    try:
+        grupos_poliza = asignar_consecutivos_polizas(file_name)
+        print(f"Se agruparon {grupos_poliza} pólizas por cada tipo.")
+        self.text_console_log(f"Se agruparon {grupos_poliza} pólizas por cada tipo.")
+    except Exception as e:
+        print(f"❌ Error en asignar_consecutivos_polizas: {e}")
+        self.text_console_log(
+            f"❌ Error al procesar la agrupación por pólizas: {e}", "ERROR"
+        )
+        raise FileNotFoundError(
+            "¡Es imposible seguir sin el archivo cedula_iva_acreditable_100.xlsx!"
+        )
+        # return  # o raise, según prefieras
 
+    # ============================================================
     # Paso 7,
-    aplicar_borde_inferior_folios(file_name)
+    # ============================================================
+    try:
+        aplicar_borde_inferior_folios(file_name)
+        print(f"Aplicar formato BORDE-INFERIOR a cada segmento por RFC.")
+        self.text_console_log(
+            f"Aplicar formato BORDE-INFERIOR a cada segmento por RFC."
+        )
+    except Exception as e:
+        print(f"❌ Error en aplicar_borde_inferior_folios: {e}")
+        self.text_console_log(f"❌ Error en formato BORDE-INFERIOR: {e}", "ERROR")
+        raise FileNotFoundError(
+            "¡Es imposible seguir sin el archivo cedula_iva_acreditable_100.xlsx!"
+        )
+        # return  # o raise, según prefieras

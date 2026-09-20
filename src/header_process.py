@@ -1,4 +1,5 @@
 import datetime
+import io
 import os
 import shutil
 import tempfile
@@ -7,6 +8,34 @@ import openpyxl
 from openpyxl.drawing.image import Image
 from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
+from PyQt5.QtCore import QFile, QIODevice
+from PyQt5.QtGui import QPixmap
+
+
+def obtener_imagen_desde_recursos(ruta_recurso):
+    """
+    Extrae imagen desde recursos Qt compilados (funciona en exe también)
+    """
+    temp_file = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+    temp_path = temp_file.name
+    temp_file.close()
+
+    try:
+        qfile = QFile(ruta_recurso)
+        if not qfile.open(QIODevice.ReadOnly):
+            raise FileNotFoundError(f"No se pudo abrir: {ruta_recurso}")
+
+        byte_array = qfile.readAll()
+        qfile.close()
+
+        with open(temp_path, "wb") as f:
+            f.write(bytes(byte_array))
+
+        return temp_path
+
+    except Exception as e:
+        print(f"❌ Error al extraer imagen: {e}")
+        raise
 
 
 def actualizar_excel_con_imagen(ruta_archivo, suffix, ruta_imagen):
@@ -132,9 +161,25 @@ def actualizar_excel_con_imagen(ruta_archivo, suffix, ruta_imagen):
         traceback.print_exc()
 
 
-def main_header_process(file_path, suffix, logo):
+def main_header_process(file_path, suffix, logo_recurso):
+    """
+    Args:
+        file_path: Ruta del archivo Excel
+        suffix: Sufijo
+        logo_recurso: Ruta del recurso (ej: ':/icons/logo.png')
+    """
 
     if os.path.exists(file_path):
-        actualizar_excel_con_imagen(file_path, suffix, logo)
+        # actualizar_excel_con_imagen(file_path, suffix, logo)
+
+        # Extraer la imagen de los recursos
+        ruta_imagen_temporal = obtener_imagen_desde_recursos(logo_recurso)
+        try:
+            actualizar_excel_con_imagen(file_path, suffix, ruta_imagen_temporal)
+        finally:
+            # Limpiar el archivo temporal
+            if os.path.exists(ruta_imagen_temporal):
+                os.remove(ruta_imagen_temporal)
+
     else:
         print(f"No existe: {file_path}")

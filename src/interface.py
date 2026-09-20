@@ -6,6 +6,8 @@ import time
 from datetime import datetime
 from html import escape
 
+import resources_rc
+
 
 # ⭐ NUEVA FUNCIÓN - Detectar si estamos en .exe o en desarrollo
 def get_base_path():
@@ -34,7 +36,6 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 
-import resources_rc
 from flujograma_process import main_flujograma_process
 from header_process import main_header_process
 from iva_format_process import main_iva_format_process
@@ -1064,7 +1065,7 @@ class Ui_fedApp(object):
                 if vle_action.casefold() == "Formato".casefold():
                     self.text_console_log("Formato final al archivo...", "PROCESS")
                     file_name = f"{path}/cedula_iva_acreditable_100.xlsx"
-                    main_iva_format_process(path, file_name)
+                    main_iva_format_process(self, path, file_name)
 
             #############################################################################
             # Procesos genericos tanto para V0
@@ -1114,8 +1115,8 @@ class Ui_fedApp(object):
                     if vle_process.casefold() == "iva".casefold()
                     else f"{path}/{vle_process}.xlsx"
                 )
-                logo_path = resource_path("icons/logo.png")
-                main_header_process(file_path, vle_process, logo_path)
+                logo_path = resource_path(":/icons/logo.png")
+                main_header_process(file_path, vle_process, ":/icons/logo.png")
                 print("Proceso de referencia")
 
         except Exception as e:
