@@ -53,6 +53,7 @@ jobs:
       - name: Install build tools
         run: |
           Write-Host "Installing build tools..."
+          pip install "lazy_loader>=0.2,<0.4"
           pip install nuitka zstandard PyQt5-tools awscli
 
           if ($LASTEXITCODE -ne 0) {
