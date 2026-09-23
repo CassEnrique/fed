@@ -106,7 +106,7 @@ def actualizar_excel_con_imagen(ruta_archivo, suffix, ruta_imagen):
 
         # --- PASO 3: EDICIÓN REAL (MODO DISEÑO) ---
         # data_only=False para NO borrar fórmulas. keep_vba=True para no romper macros.
-        wb = openpyxl.load_workbook(ruta_archivo, data_only=False, keep_vba=True)
+        wb = openpyxl.load_workbook(ruta_archivo, data_only=False)
         sheet = wb.active
 
         # ESTRATEGIA: En lugar de insert_rows, usamos move_range.
